@@ -4,9 +4,10 @@ name: Release
 #   1. push of a `v*` tag         -> full release flow, real publish if tag is non-prerelease
 #   2. workflow_dispatch          -> dry-run by default; flip `real_publish` to actually publish
 #
-# This workflow is end-to-end runnable today (dry-run). Tag pushes must build
-# binaries and draft the GitHub Release before crates are published; manual
-# dispatch still exercises the artifact gate without creating a release.
+# This workflow is end-to-end runnable today (dry-run). Real publishes create
+# or reuse the matching GitHub Release before crates are published. Publish
+# steps are idempotent so an already-published version is skipped instead of
+# turning release recovery red.
 
 on:
   push:
@@ -212,8 +213,9 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  # 5. Draft GitHub Release. Tag pushes create the release; workflow_dispatch
-  #    keeps the same binary-artifact gate but performs no release mutation.
+  # 5. Draft GitHub Release. Tag pushes and real workflow_dispatch publishes
+  #    create or update the release; dry-run workflow_dispatch keeps the same
+  #    binary-artifact gate but performs no release mutation.
   #    Body is the matching `## [x.y.z]` section from CHANGELOG.md, extracted
   #    by a small awk script so we don't add another action dependency.
   github-release:
@@ -247,8 +249,8 @@ jobs:
           fi
           echo "Release body preview:"
           head -50 /tmp/release-notes.md
-      - name: create release
-        if: github.event_name == 'push'
+      - name: create or update release
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.real_publish == true)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
@@ -259,13 +261,20 @@ jobs:
           if [[ "${{ needs.verify-version.outputs.is_prerelease }}" == "true" ]]; then
             flags+=("--prerelease")
           fi
-          gh release create "$tag" \
-            "${flags[@]}" \
-            --title "$tag" \
-            --notes-file /tmp/release-notes.md \
-            dist/*.tar.gz dist/*.tar.gz.sha256 dist/*.zip dist/*.zip.sha256
+          assets=(dist/*.tar.gz dist/*.tar.gz.sha256 dist/*.zip dist/*.zip.sha256)
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release edit "$tag" --title "$tag" --notes-file /tmp/release-notes.md
+            gh release upload "$tag" "${assets[@]}" --clobber
+          else
+            gh release create "$tag" \
+              "${flags[@]}" \
+              --target "$GITHUB_SHA" \
+              --title "$tag" \
+              --notes-file /tmp/release-notes.md \
+              "${assets[@]}"
+          fi
       - name: workflow_dispatch release gate
-        if: github.event_name != 'push'
+        if: github.event_name == 'workflow_dispatch' && inputs.real_publish != true
         run: echo "workflow_dispatch built and verified release artifacts; no GitHub Release is created."
 
   # 6. Crates.io publish. Real-publish gate has THREE conditions, all of which
@@ -299,39 +308,45 @@ jobs:
             echo "::error::CRATES_IO_TOKEN is not configured. Configure under repo secrets, then re-run."
             exit 1
           fi
-      - name: publish mimir-core
+      - name: publish crates
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
-        run: cargo publish -p mimir-core
-      - name: wait for crates.io index propagation
-        run: sleep 30
-      - name: dry-run publish mimir-cli
-        run: cargo publish --dry-run -p mimir-cli --allow-dirty
-      - name: publish mimir-cli
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
-        run: cargo publish -p mimir-cli
-      - name: wait for crates.io index propagation
-        run: sleep 30
-      - name: dry-run publish mimir-mcp
-        run: cargo publish --dry-run -p mimir-mcp --allow-dirty
-      - name: publish mimir-mcp
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
-        run: cargo publish -p mimir-mcp
-      - name: wait for crates.io index propagation
-        run: sleep 30
-      - name: dry-run publish mimir-librarian
-        run: cargo publish --dry-run -p mimir-librarian --allow-dirty
-      - name: publish mimir-librarian
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
-        run: cargo publish -p mimir-librarian
-      - name: wait for crates.io index propagation
-        run: sleep 30
-      - name: dry-run publish mimir-harness
-        run: cargo publish --dry-run -p mimir-harness --allow-dirty
-      - name: publish mimir-harness
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
-        run: cargo publish -p mimir-harness
+          VERSION: ${{ needs.verify-version.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          crate_version_exists() {
+            local crate="$1"
+            curl --fail --silent --show-error --output /dev/null \
+              "https://crates.io/api/v1/crates/${crate}/${VERSION}"
+          }
+
+          dry_run_if_missing() {
+            local crate="$1"
+            if crate_version_exists "$crate"; then
+              echo "$crate $VERSION already exists on crates.io; skipping dry-run."
+            else
+              cargo publish --dry-run -p "$crate" --allow-dirty
+            fi
+          }
+
+          publish_if_missing() {
+            local crate="$1"
+            if crate_version_exists "$crate"; then
+              echo "$crate $VERSION already exists on crates.io; skipping publish."
+            else
+              cargo publish -p "$crate"
+              sleep 30
+            fi
+          }
+
+          publish_if_missing mimir-core
+          dry_run_if_missing mimir-cli
+          publish_if_missing mimir-cli
+          dry_run_if_missing mimir-mcp
+          publish_if_missing mimir-mcp
+          dry_run_if_missing mimir-librarian
+          publish_if_missing mimir-librarian
+          dry_run_if_missing mimir-harness
+          publish_if_missing mimir-harness
