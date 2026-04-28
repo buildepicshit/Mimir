@@ -165,6 +165,42 @@ def write_fake_live_runners(bin_dir: Path) -> None:
     mimir.chmod(0o755)
 
 
+def write_env_probe_live_runners(bin_dir: Path) -> None:
+    runner = bin_dir / "env_probe_agent.py"
+    runner.write_text(
+        "\n".join(
+            [
+                "#!/usr/bin/env python3",
+                "from __future__ import annotations",
+                "import os",
+                "import sys",
+                "payload = sys.stdin.read()",
+                "print('ENV_PROBE_BEGIN')",
+                "for key in sorted(os.environ):",
+                "    if key.startswith('MIMIR_'):",
+                "        print(f'{key}={os.environ[key]}')",
+                "print(payload)",
+                "print('ENV_PROBE_READY')",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    runner.chmod(0o755)
+    claude = bin_dir / "claude"
+    claude.write_text(
+        f"#!/bin/sh\nexec {sys.executable} {runner} \"$@\"\n",
+        encoding="utf-8",
+    )
+    claude.chmod(0o755)
+    mimir = bin_dir / "mimir"
+    mimir.write_text(
+        f"#!/bin/sh\nshift\nexec {sys.executable} {runner} \"$@\"\n",
+        encoding="utf-8",
+    )
+    mimir.chmod(0o755)
+
+
 class RecoveryBenchTests(unittest.TestCase):
     def test_list_scenarios_reports_structured_fixture(self) -> None:
         payload = run_bench("recovery", "--list", "--format", "json")
@@ -1194,6 +1230,72 @@ class RecoveryBenchTests(unittest.TestCase):
                 scores["baselines"]["D"]["rehydration_tokens"]["output"],
                 0,
             )
+
+    def test_execute_launch_contracts_scrubs_inherited_mimir_environment(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_bench(
+                "recovery",
+                "--scenario",
+                "01-example-session-context-loss",
+                "--init-results",
+                "--results-dir",
+                tmp,
+                "--format",
+                "json",
+            )
+            run_bench(
+                "recovery",
+                "--scenario",
+                "01-example-session-context-loss",
+                "--prepare-envs",
+                "--results-dir",
+                tmp,
+                "--format",
+                "json",
+            )
+            result_dir = Path(tmp) / "01-example-session-context-loss"
+            materialize_required_inputs(result_dir, Path(tmp) / "materialized")
+            run_bench(
+                "recovery",
+                "--scenario",
+                "01-example-session-context-loss",
+                "--write-launch-contracts",
+                "--results-dir",
+                tmp,
+                "--format",
+                "json",
+            )
+            bin_dir = Path(tmp) / "bin"
+            bin_dir.mkdir()
+            write_env_probe_live_runners(bin_dir)
+            env = dict(os.environ)
+            env["PATH"] = str(bin_dir) + os.pathsep + env["PATH"]
+            env["MIMIR_CONFIG_PATH"] = "/should/not/leak.toml"
+            env["MIMIR_SESSION_ID"] = "should-not-leak"
+
+            payload = run_bench(
+                "recovery",
+                "--scenario",
+                "01-example-session-context-loss",
+                "--execute-launch-contracts",
+                "--approve-live-execution",
+                "01-example-session-context-loss",
+                "--results-dir",
+                tmp,
+                "--format",
+                "json",
+                env=env,
+            )
+
+            self.assertEqual(payload["failed_count"], 0)
+            transcript_d = (result_dir / "transcript-D.md").read_text(
+                encoding="utf-8"
+            )
+            self.assertIn("ENV_PROBE_BEGIN", transcript_d)
+            self.assertNotIn("/should/not/leak.toml", transcript_d)
+            self.assertNotIn("should-not-leak", transcript_d)
 
     def test_execute_launch_contracts_refuses_existing_captured_transcript(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
