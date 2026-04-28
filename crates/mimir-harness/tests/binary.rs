@@ -183,6 +183,18 @@ fn status_value<'a>(stdout: &'a str, key: &str) -> Option<&'a str> {
     stdout.lines().find_map(|line| line.strip_prefix(&prefix))
 }
 
+fn normalize_status_path_text(value: &str) -> String {
+    let normalized = value.replace('\\', "/");
+    if let Some(stripped) = normalized.strip_prefix("/private/var/") {
+        return format!("/var/{stripped}");
+    }
+    normalized
+}
+
+fn expected_status_path(path: &Path) -> String {
+    normalize_status_path_text(&path.display().to_string())
+}
+
 fn remote_status_stdout(project: &Path) -> Result<String, Box<dyn std::error::Error>> {
     remote_status_stdout_with_args(project, &[])
 }
@@ -459,12 +471,17 @@ fn status_project_root_does_not_fallback_to_wrapped_env_config(
         explicit_config_stdout.contains("config_status=ready"),
         "status should use the explicit config path:\n{explicit_config_stdout}"
     );
-    assert!(
-        explicit_config_stdout.contains(&format!("drafts_dir={}", wrapped_drafts.display())),
+    let actual_drafts_dir = status_value(&explicit_config_stdout, "drafts_dir")
+        .map(normalize_status_path_text)
+        .ok_or("status output should include drafts_dir")?;
+    assert_eq!(
+        actual_drafts_dir,
+        expected_status_path(&wrapped_drafts),
         "status should use the explicit config's drafts root:\n{explicit_config_stdout}"
     );
-    assert!(
-        !explicit_config_stdout.contains(&foreign_drafts.display().to_string()),
+    assert_ne!(
+        actual_drafts_dir,
+        expected_status_path(&foreign_drafts),
         "explicit config should not inherit wrapped drafts dir:\n{explicit_config_stdout}"
     );
     Ok(())

@@ -48,6 +48,23 @@ fn normalize_test_path(path: &Path) -> PathBuf {
     normalize_test_path(parent).join(file_name)
 }
 
+fn status_value<'a>(output: &'a str, key: &str) -> Option<&'a str> {
+    let prefix = format!("{key}=");
+    output.lines().find_map(|line| line.strip_prefix(&prefix))
+}
+
+fn normalize_status_path_text(value: &str) -> String {
+    let normalized = value.replace('\\', "/");
+    if let Some(stripped) = normalized.strip_prefix("/private/var/") {
+        return format!("/var/{stripped}");
+    }
+    normalized
+}
+
+fn normalized_expected_status_path(path: &Path) -> String {
+    normalize_status_path_text(&normalize_test_path(path).display().to_string())
+}
+
 fn test_file_uri(path: &Path) -> String {
     format!("file://{}", normalize_test_path(path).display())
 }
@@ -2288,16 +2305,19 @@ fn render_operator_status_prefers_cwd_config_over_env_path(
     );
 
     let output = render_operator_status(&cwd_project, &env_map)?;
-    let cwd_line = format!("config_path={}", normalize_test_path(&cwd_config).display());
-    let env_line = format!("config_path={}", normalize_test_path(&env_config).display());
+    let actual_config_path = status_value(&output, "config_path")
+        .map(normalize_status_path_text)
+        .ok_or("status output should include config_path")?;
+    let cwd_path = normalized_expected_status_path(&cwd_config);
+    let env_path = normalized_expected_status_path(&env_config);
 
-    assert!(
-        output.contains(&cwd_line),
-        "expected cwd config_path in status output:\nlooking for: {cwd_line}\ngot:\n{output}"
+    assert_eq!(
+        actual_config_path, cwd_path,
+        "expected cwd config_path in status output:\ngot:\n{output}"
     );
-    assert!(
-        !output.contains(&env_line),
-        "env config_path should not appear when cwd has its own:\nlooking against: {env_line}\ngot:\n{output}"
+    assert_ne!(
+        actual_config_path, env_path,
+        "env config_path should not appear when cwd has its own:\ngot:\n{output}"
     );
     Ok(())
 }
@@ -2321,11 +2341,14 @@ fn render_operator_status_falls_back_to_env_when_cwd_has_no_config(
     );
 
     let output = render_operator_status(&cwd_no_config, &env_map)?;
-    let env_line = format!("config_path={}", normalize_test_path(&env_config).display());
+    let actual_config_path = status_value(&output, "config_path")
+        .map(normalize_status_path_text)
+        .ok_or("status output should include config_path")?;
+    let env_path = normalize_status_path_text(&env_config.display().to_string());
 
-    assert!(
-        output.contains(&env_line),
-        "expected env-fallback config_path:\nlooking for: {env_line}\ngot:\n{output}"
+    assert_eq!(
+        actual_config_path, env_path,
+        "expected env-fallback config_path:\ngot:\n{output}"
     );
     Ok(())
 }
@@ -2354,16 +2377,19 @@ fn render_operator_status_prefers_cwd_drafts_dir_over_env_drafts_dir(
     );
 
     let output = render_operator_status(&cwd_project, &env_map)?;
-    let cwd_line = format!("drafts_dir={}", normalize_test_path(&cwd_drafts).display());
-    let env_line = format!("drafts_dir={}", normalize_test_path(&env_drafts).display());
+    let actual_drafts_dir = status_value(&output, "drafts_dir")
+        .map(normalize_status_path_text)
+        .ok_or("status output should include drafts_dir")?;
+    let cwd_drafts_path = normalized_expected_status_path(&cwd_drafts);
+    let env_drafts_path = normalized_expected_status_path(&env_drafts);
 
-    assert!(
-        output.contains(&cwd_line),
-        "expected cwd drafts_dir in status output:\nlooking for: {cwd_line}\ngot:\n{output}"
+    assert_eq!(
+        actual_drafts_dir, cwd_drafts_path,
+        "expected cwd drafts_dir in status output:\ngot:\n{output}"
     );
-    assert!(
-        !output.contains(&env_line),
-        "env drafts_dir should not appear when cwd config has storage:\nlooking against: {env_line}\ngot:\n{output}"
+    assert_ne!(
+        actual_drafts_dir, env_drafts_path,
+        "env drafts_dir should not appear when cwd config has storage:\ngot:\n{output}"
     );
     Ok(())
 }
