@@ -1,90 +1,109 @@
 # Mimir
 
-Experimental, pre-1.0 memory governance for AI agents.
+Experimental local-first memory governance for AI agents.
 
-Mimir started as an experiment to see whether we could reduce a few recurring pains in day-to-day agent work: cross-agent memory management, memory contamination between contexts, and losing useful working memory during restarts or system failures. The core thesis: when agents write and read their own memory, the canonical storage format should be optimized for agent consumption, not human legibility, with separate decoder and observability tools for human audit.
+Mimir is built around one rule: agents may propose memory, but they do not write trusted shared memory directly. Session notes, checkpoints, native agent memories, and adapter exports enter as untrusted drafts. The librarian validates, structures, deduplicates, and commits accepted records into an append-only canonical log with provenance.
 
-The name refers to Mimir (Norse: Mímir), the wise being Odin consulted for counsel. The pre-cutover codename was `engram`; the thesis still targets durable agent memory traces, but public code and docs now use Mimir throughout.
+The project is pre-1.0. The architecture and local implementation are real, but storage details, CLI flags, draft envelopes, and adapter workflows may change before the first stable release.
 
-Mimir is being published early so other engineers, researchers, and agent-tool builders can inspect the architecture while it is still malleable. It is not production-ready: APIs, storage details, CLI behavior, and harness workflows may change before the first stable release. The intent is honest active development, not a polished v1 claim.
+## What Works Today
 
-## Public status
-
-| Area | State |
+| Area | Current state |
 |---|---|
-| Core append-only store | Implemented and covered by local unit, property, integration, and crash-injection tests. |
-| Librarian-mediated writes | Implemented for validated draft processing; agents still do not write trusted shared memory directly. |
-| MCP surface | Implemented for governed read/write tooling against the librarian boundary. |
-| Transparent harness | Implemented for local wrapped Claude/Codex sessions; Copilot is now an official adapter target with read-only session-store recall and governed draft submission through `mimir-librarian copilot`. |
-| Recovery benchmark | Scenario corpus, dry-run planner, environment validation, launch contracts, explicitly approved live execution, transcript gates, and score validation are in place; benchmark claims wait for recorded live runs. |
-| Releases | No stable release yet. Treat `main` as pre-1.0 active development. |
+| Append-only store | Canonical log, replay, verification, crash recovery, symbol tracking, supersession, and confidence decay are implemented in `mimir-core`. |
+| Librarian path | `mimir-librarian` ingests draft envelopes, validates candidate canonical records, filters duplicates, handles conflicts, and commits through the governed store path. |
+| Agent harness | `mimir <agent> [agent args...]` preserves the native terminal flow for local agents while adding bootstrap, context, checkpoint, capture, and post-session handoff hooks. |
+| Operator controls | `mimir status`, `mimir doctor`, `mimir context`, `mimir drafts ...`, and `mimir memory ...` expose setup, bounded context, draft triage, and read-only memory inspection. |
+| MCP | `mimir-mcp` exposes governed local memory tools over stdio MCP. |
+| Recovery | Git-backed `mimir remote status|push|pull|drill` mirrors append-only logs and draft JSON for local recovery. |
+| Benchmarks | Recovery benchmark fixtures, launch contracts, transcript gates, and score validation live under `benchmarks/recovery`. Public benchmark claims wait for recorded live runs. |
+| Codex | `plugins/mimir` is a coherent Codex plugin bundle for the Mimir workflow. It is not a standalone memory skill and does not bypass the librarian. |
 
-The current public-readiness checklist is tracked in [`docs/planning/2026-04-27-public-readiness.md`](docs/planning/2026-04-27-public-readiness.md).
+## What Is Not Claimed Yet
 
-The original 14 architecture specs are `authoritative`; the newer scope-model and consensus-quorum specs are still `draft` while the multi-agent control-plane mandate is being productized. The 2026-04-24 mandate expands Mimir into a multi-agent memory governance/control plane with scoped promotion, consensus quorum artifacts, and a transparent launch harness (`mimir <agent> [agent args...]`). See [`STATUS.md`](STATUS.md) for the current phase snapshot, [`AGENTS.md`](AGENTS.md) for architectural invariants and the agent operating manual, and [`docs/planning/2026-04-24-transparent-agent-harness.md`](docs/planning/2026-04-24-transparent-agent-harness.md) for the launch-boundary direction.
-
-The 2026-04-20 architecture pivot remains central: agents write prose, the librarian sanitizes and structures it into canonical Lisp before committing, and the canonical storage surface stays internal. Agents and human inspectors use MCP or `mimir-cli`; direct canonical writes are out of bounds.
+- Production readiness.
+- Stable storage, CLI, API, MCP schema, or wire-format compatibility.
+- Hosted service availability.
+- Benchmark-proven superiority over other memory systems.
+- Direct agent writes into canonical memory.
+- Cross-project or operator-wide memory promotion without librarian governance.
 
 ## Quickstart
 
 ```bash
 git clone https://github.com/buildepicshit/Mimir.git
 cd Mimir
-cargo build --workspace --all-features
-cargo test --workspace --all-features
-cargo run -p mimir-cli -- --help
-cargo run -p mimir-harness -- --help
+
+cargo build --workspace
+cargo test --workspace
 cargo run -p mimir-harness -- doctor --project-root .
+cargo run -p mimir-harness -- rustc --version
 ```
 
-For a safe fresh-clone walkthrough that verifies the harness with a no-op child process, see [`docs/first-run.md`](docs/first-run.md).
+For a fresh-clone walkthrough, see [`docs/first-run.md`](docs/first-run.md).
 
-For Codex users, the repo includes a draft Mimir plugin bundle at [`plugins/mimir`](plugins/mimir). It is a workflow package, not a standalone skill: the bundled skill points Codex at `mimir doctor`, explicit setup inspection, checkpoint draft submission, and governed read-only context while preserving the librarian as the only canonical writer.
+## Running Mimir
+
+Build the transparent harness:
+
+```bash
+cargo install --locked --path crates/mimir-harness
+```
+
+Inspect project readiness:
+
+```bash
+mimir doctor --project-root .
+mimir status --project-root .
+```
+
+Wrap an agent session:
+
+```bash
+mimir codex
+mimir claude
+```
+
+Record an intentional draft memory from a wrapped session:
+
+```bash
+mimir checkpoint --title "short title" "memory note"
+```
+
+Process captured drafts after a session with the configured per-repo librarian policy. The canonical write boundary stays the librarian path; raw native memories and checkpoint notes are draft evidence until accepted.
 
 ## Backup And Restore
 
-Mimir's primary recovery path is explicit Git-backed BC/DR mirroring:
+Mimir's recovery path is explicit Git-backed BC/DR mirroring:
 
 ```bash
 mimir remote status
 mimir remote push --dry-run
 mimir remote push
 ./scripts/bcdr-drill.sh --dry-run
-./scripts/bcdr-drill.sh --destructive
 ```
 
-`mimir remote push` mirrors the append-only workspace log and draft JSON
-files into the configured recovery repository. `mimir remote pull`
-restores missing or prefix-safe local state. Push and pull verify
-canonical-log integrity before and after sync. The drill deletes the local
-workspace log, restores it from the remote, verifies integrity, and runs a
-read-path sanity query. Projects can opt into
-`remote.auto_push_after_capture = true` to run the same verified push path
-after wrapped-session capture and librarian handoff. See
-[`docs/bc-dr-restore.md`](docs/bc-dr-restore.md).
+`mimir remote push` mirrors the append-only workspace log and draft JSON files into the configured recovery repository. `mimir remote pull` restores missing or prefix-safe local state after verifying canonical-log integrity. See [`docs/bc-dr-restore.md`](docs/bc-dr-restore.md).
 
-## Why this exists
+## Documentation
 
-Running many agents across many projects, each instance's memory drifts across sessions, restarts, tools, and contexts that should never mix. System failures and cold starts can also erase useful working context at exactly the wrong time. The dominant cost is timeline, not tokens or latency: an agent acting on stale, missing, or contaminated context burns developer hours. Mimir is an attempt to make memory local until governed, then reusable through librarian validation, provenance, scoped promotion, and recovery paths that are better than isolated markdown files.
-
-## Where help is useful
-
-- Rust correctness review for the append-only log, replay, write-locking, and crash-recovery paths.
-- Security and threat-model review around prompt/data boundaries, native agent setup, subprocess handling, and recovery remotes.
-- Benchmark methodology review for the recovery scenarios, scoring rubric, transcript evidence gates, and future live pilots.
-- Adapter and harness UX feedback from people who regularly run Claude, Codex, MCP clients, or other agent tools.
-- Documentation cleanup where the internal design history is too dense for a new contributor.
-
-## Technology
-
-- **Librarian implementation:** [Rust](https://www.rust-lang.org). Chosen for compiler-shaped workload fit, deterministic performance without GC surprises, and alignment with the modern agent-memory ecosystem (LanceDB, Turbopuffer, qdrant).
-- **Write-surface IR (v0, working assumption):** Lisp S-expression — picked empirically via the tokenizer bake-off on a 50-fact corpus.
-- **License:** [Apache-2.0](LICENSE).
+- [`docs/README.md`](docs/README.md) - public documentation index.
+- [`STATUS.md`](STATUS.md) - current implementation and release state.
+- [`AGENTS.md`](AGENTS.md) - architectural invariants and agent operating manual.
+- [`docs/concepts/`](docs/concepts/) - architecture specs.
+- [`docs/launch-readiness.md`](docs/launch-readiness.md) - OSS, engineering, and promise sign-off checklist.
+- [`docs/launch-posting-plan.md`](docs/launch-posting-plan.md) - launch article, listing, and posting plan.
 
 ## Contributing
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md). All contributors — human and agent — follow [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md). Report security issues per [`SECURITY.md`](SECURITY.md).
+Useful review areas are Rust correctness, append-only log integrity, security boundaries, recovery benchmark methodology, adapter UX, and documentation clarity.
 
-## Studio context
+See [`CONTRIBUTING.md`](CONTRIBUTING.md). All contributors follow [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md). Report security issues per [`SECURITY.md`](SECURITY.md), not as public issues.
 
-Mimir is a [BES Studios](https://github.com/buildepicshit) project. Sibling flagships: Floom, Wick, UsefulIdiots.
+## License
+
+Apache-2.0. See [`LICENSE`](LICENSE).
+
+## Studio Context
+
+Mimir is a [BES Studios](https://github.com/buildepicshit) project.

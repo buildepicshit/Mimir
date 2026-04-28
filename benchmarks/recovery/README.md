@@ -68,7 +68,7 @@ baselines, typed ground-truth rows, typed staleness probes, and unique
 ground-truth / staleness-probe IDs.
 The initializer writes non-clobbering transcript placeholders,
 `scorecard.md`, `scores.json`, `notes.md`, and `run-plan.json` under
-`research/recovery-benchmark/results/<scenario-id>/`. The environment
+`benchmarks/recovery/results/<scenario-id>/`. The environment
 preparer writes non-clobbering per-baseline scaffolds under
 `results/<scenario-id>/environments/<baseline-id>/`, including
 `manifest.json`, prompts, preserved-state notes, setup README files, and
@@ -130,7 +130,7 @@ verdict only for complete scenario evidence.
 ## Directory layout
 
 ```
-research/recovery-benchmark/
+benchmarks/recovery/
 ├── README.md                                  — this file
 ├── SCORING.md                                 — rubric, metrics, threshold shape
 ├── scenarios/
@@ -148,7 +148,7 @@ JSON file must define the four baselines, cold-start prompt,
 work-instruction test, typed ground-truth checklist, and staleness tests.
 Load-bearing decisions are explicitly marked as auto-fail when wrong.
 The dry-run planner is covered by
-`python3 research/recovery-benchmark/test_bench.py`.
+`python3 benchmarks/recovery/test_bench.py`.
 The same test covers result-skeleton creation and verifies reruns do not
 overwrite operator-edited transcript or scorecard files. It also covers
 per-baseline environment scaffold creation, `scores.json` completeness
@@ -162,12 +162,12 @@ aggregation across result directories.
 
 ## Relationship to other research tracks
 
-- [`../llm-fluency/`](../llm-fluency/) — Delivery Plan item A, Phase 3.2 parse-rate gate. Measures whether Claude can *write* canonical Lisp reliably. This benchmark measures whether the written-then-retrieved flow *delivers recovery value*. Different questions; both matter.
+- Earlier parse-rate scouting measured whether Claude could write canonical Lisp reliably. This benchmark measures whether the written-then-retrieved flow delivers recovery value. Different questions; both matter, but only the recovery harness is shipped here as a public benchmark asset.
 - Phase 6 rigorous recovery benchmark — gated on positive signal from this v0. Would be N-replicated, multi-operator, blinded; out of scope here.
 
 ## How to update this directory
 
 - Methodology changes: edit [`README.md`](README.md) and [`SCORING.md`](SCORING.md) in place; these are living docs.
 - New scenario: add a new numbered markdown file plus a same-stem JSON file under `scenarios/`; run `cargo test -p mimir-harness --test recovery_benchmark`; update the table in [`SCORING.md`](SCORING.md) if the scenario introduces a new scored dimension.
-- Harness planner, result-initializer, environment-preparer, environment-validator, launch-plan, launch-contract writer, launch-contract validator, transcript-validator, score-validator, summary, or verdict changes: run `python3 research/recovery-benchmark/test_bench.py`.
+- Harness planner, result-initializer, environment-preparer, environment-validator, launch-plan, launch-contract writer, launch-contract validator, transcript-validator, score-validator, summary, or verdict changes: run `python3 benchmarks/recovery/test_bench.py`.
 - Results: land as a dedicated PR per scenario batch so the transcripts + scorecard are reviewable together.

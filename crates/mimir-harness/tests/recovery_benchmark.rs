@@ -28,8 +28,8 @@ fn repo_root() -> PathBuf {
 #[test]
 fn recovery_benchmark_scenarios_are_structured_data() {
     let scenarios_dir = repo_root()
-        .join("research")
-        .join("recovery-benchmark")
+        .join("benchmarks")
+        .join("recovery")
         .join("scenarios");
     let entries = fs::read_dir(&scenarios_dir)
         .unwrap_or_else(|error| panic!("read {}: {error}", scenarios_dir.display()));

@@ -24,7 +24,7 @@
 
 ## What Mimir Is
 
-Mimir is an experimental agent-first memory system. The name refers to the neuroscience term for the physical substrate of a memory trace — a reference to the thesis that agent memory should be stored in a form optimized for agent consumption, not human legibility.
+Mimir is an experimental agent-first memory system. The public name refers to Mimir, the wise figure from Norse myth. The pre-cutover codename was `engram`, the neuroscience term for the physical substrate of a memory trace; that thesis still matters: agent memory should be stored in a form optimized for agent consumption, not human legibility.
 
 **Mandate update — 2026-04-24.** Mimir's mission is now a multi-agent memory governance/control plane. Claude, Codex, MCP clients, and future harnesses may all contribute memory drafts, but no agent writes trusted shared memory directly. The primary user entry point should be a transparent launch harness: `mimir <agent> [agent args...]` preserves the native agent UI while wrapping the session with Mimir memory, bootstrap, capture, and governance. Mimir ingests raw memories, cleans and validates them through the librarian, separates observations from instructions, files records by scope, and promotes reusable knowledge only through explicit provenance-preserving governance. Mimir may also orchestrate cross-agent, cross-model consensus quorums; those deliberation outputs are governed evidence drafts, not direct canonical memory writes.
 
@@ -129,4 +129,4 @@ Mimir is a [BES Studios](https://github.com/buildepicshit) project. Sibling flag
 | Observability schema | [`docs/observability.md`](docs/observability.md) |
 | Prior art attribution | [`docs/attribution.md`](docs/attribution.md) — primary-source verified |
 | Roadmap to v1.0 / public launch | [`docs/planning/2026-04-19-roadmap-to-prime-time.md`](docs/planning/2026-04-19-roadmap-to-prime-time.md) |
-| Experimental measurement | `research/` (gitignored while in flux) |
+| Experimental measurement | `benchmarks/recovery/` for public benchmark assets; ignored local scratch stays out of the public tree |

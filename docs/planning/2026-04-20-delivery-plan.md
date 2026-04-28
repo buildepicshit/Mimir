@@ -8,7 +8,7 @@
 >
 > Specifically:
 >
-> - **Deliverable A** (Phase 3.2 parse-rate benchmark) is no longer an existential gate. See the framing-update banner in [`../research/2026-04-20-llm-fluency-cc-baseline.md`](../research/2026-04-20-llm-fluency-cc-baseline.md).
+> - **Deliverable A** (Phase 3.2 parse-rate benchmark) is no longer an existential gate. The private scouting writeup is not part of the public tree.
 > - **Deliverable B** (qualitative recovery benchmark v0) is reshaped into the Rolls Royce plan's categories 7–9 (BC/DR plumbing, benchmark harness, corpus). Pilot 01 (PR #17) was closed unmerged as an unfair-comparison historical record; see the closure note on that PR.
 > - **Deliverable C** (Mode 1 client integration) maps to the Rolls Royce plan's categories 3 + 4 (client integration bundle + cold-start rehydration Skill), now explicitly scoped as real-distribution engineering rather than a prototype skill.
 > - **Deliverable D** (public-flip readiness) is marked **deferred** in the new plan — post-first-pilot-that-succeeds, not pre-pilot.
@@ -46,7 +46,7 @@ Five PRs open on 2026-04-20, zero merged. Main is at the initial-import commit. 
 | [#6](https://github.com/buildepicshit/Mimir/pull/6) | `docs/mission-scope-and-recovery-benchmark` | mission scope reframe and recovery-benchmark design | `main` | Merge-ready (docs-only) |
 | [#3](https://github.com/buildepicshit/Mimir/pull/3) | `feat/inferential-resolver` | wire Inferential resolver (Phase 3.1) | `chore/post-cutover-cleanup` | Needs rebase onto new `main` after #1 merges |
 | [#5](https://github.com/buildepicshit/Mimir/pull/5) | `fix/mimir-mcp-clock-injection` | `Clock` trait + `MimirServer::with_clock` | `chore/post-cutover-cleanup` | Needs rebase onto new `main` after #1 merges |
-| [#4](https://github.com/buildepicshit/Mimir/pull/4) | `feat/llm-fluency-benchmark` | Phase 3.2 LLM-fluency benchmark scaffolding | `main` (likely) | Needs rebase verified after #1 merges |
+| [#4](https://github.com/buildepicshit/Mimir/pull/4) | `feat/parse-fluency-benchmark` | Phase 3.2 parse-rate benchmark scaffolding | `main` (likely) | Needs rebase verified after #1 merges |
 
 **Merge order when we land the wave:** #1 → #6 → #3 → #5 → #4. Rebase each stacked branch onto the post-merge `main`, re-run the local gate, push, merge. Expect 5 CI runs to be triggered by the wave; run them only when quota allows full gating, not during exhaustion.
 
@@ -57,22 +57,22 @@ The four deliverables below are the gate between "where we are" and "ready to fl
 ### Deliverable A — Phase 3.2 parse-rate benchmark (execution)
 
 - **Goal.** Measure Claude canonical-Lisp emit success on the 100-prompt corpus shipped in [#4](https://github.com/buildepicshit/Mimir/pull/4). Commit the numbers.
-- **Acceptance.** ≥98% parse success on both Claude Sonnet 4.6 and Claude Opus 4.7 across ≥N trials. Results checked into `research/llm-fluency/results/` with full run logs and a summary written up as `research/llm-fluency/2026-04-XX-baseline.md`.
+- **Acceptance.** ≥98% parse success on both Claude Sonnet 4.6 and Claude Opus 4.7 across ≥N trials. Results checked into a dated benchmark report with full run logs.
 - **Note on API use.** The benchmark's harness calls the Anthropic API as a *measurement instrument*. Production has no hosted API dependency; the benchmark is out-of-band infrastructure to verify the wire-surface thesis.
 - **Dependencies.** [#4](https://github.com/buildepicshit/Mimir/pull/4) scaffold (usable from its branch without merging).
 - **Scale.** 1–2 operator-days once API budget is in place.
 - **Gate.** Required before Deliverable C — Mode 1 client integration presumes the emit surface is stable.
-- **Scouting complete (2026-04-20).** Corpus verified at 100/100 parse via `python3 research/llm-fluency/verify_corpus.py` against the `target/debug/mimir-cli` binary. Two harnesses now shipped: `run_benchmark_cc.py` (primary — dispatches via the `claude` CLI, matches the production Claude-Code-over-MCP path, **no API key required**) and `run_benchmark.py` (SDK cross-check, requires API key).
-- **First baseline executed 2026-04-20 (Sonnet 4.6, CC harness, 100 prompts, 24m36s).** Result: **74/100 = 74%**, misses the ≥98% gate. Per-shape: `sem` 92%, `epi` 96%, `pro` 92%, **`query` 16%**. The query cliff is a wire-surface discoverability issue: grammar uses `:s` / `:p` / `:o` as single-char keywords; Claude naturally emits `:subject` / `:predicate` / `:object` (or `:subj`) and the parser rejects all of them; the few-shot never exercised a subject-filtered query to demonstrate the compressed form. Full writeup at [`../research/2026-04-20-llm-fluency-cc-baseline.md`](../research/2026-04-20-llm-fluency-cc-baseline.md). Decisions pending: (1) Opus 4.7 cross-model baseline, (2) query-keyword question — expand parser / change canonical form / add query few-shot coverage — operator-level call.
+- **Scouting complete (2026-04-20).** Corpus verified at 100/100 parse against the `target/debug/mimir-cli` binary. Two harness styles were used: a primary CLI-dispatch path matching the production Claude-Code-over-MCP route and an SDK cross-check path.
+- **First baseline executed 2026-04-20 (Sonnet 4.6, CLI harness, 100 prompts, 24m36s).** Result: **74/100 = 74%**, misses the ≥98% gate. Per-shape: `sem` 92%, `epi` 96%, `pro` 92%, **`query` 16%**. The query cliff is a wire-surface discoverability issue: grammar uses `:s` / `:p` / `:o` as single-char keywords; Claude naturally emits `:subject` / `:predicate` / `:object` (or `:subj`) and the parser rejects all of them; the few-shot never exercised a subject-filtered query to demonstrate the compressed form. Decisions pending: (1) Opus 4.7 cross-model baseline, (2) query-keyword question — expand parser / change canonical form / add query few-shot coverage — operator-level call.
 
 ### Deliverable B — Qualitative recovery benchmark v0
 
 - **Goal.** 3–5 hand-crafted cold-start scenarios comparing Mimir against the markdown-file baselines from [`2026-04-20-mission-scope-and-recovery-benchmark.md`](2026-04-20-mission-scope-and-recovery-benchmark.md) § 8. Directional signal on whether Mimir earns its complexity over raw markdown on the BC/DR scenario.
-- **Acceptance.** Each scenario scored on: time-to-productive, fact correctness, hallucination rate on "what did we decide," staleness handling, rehydration token cost. Results written up as `research/recovery-benchmark/2026-04-XX-v0.md` with a go/no-go recommendation on proceeding to a rigorous version.
+- **Acceptance.** Each scenario scored on: time-to-productive, fact correctness, hallucination rate on "what did we decide," staleness handling, rehydration token cost. Results written up as `benchmarks/recovery/2026-04-XX-v0.md` with a go/no-go recommendation on proceeding to a rigorous version.
 - **Dependencies.** None strictly. Can run against the current substrate + manual retrieval. Easier after Deliverable C lands, but qualitative v0 is designed to be cheap enough that it does not wait.
 - **Scale.** 2–3 operator-days.
 - **Gate.** A positive qualitative result is the go-signal for Deliverable D public-flip prep. A negative result forces a design rethink before any flip.
-- **Scouting complete (2026-04-20).** Methodology, scoring rubric, and one worked example committed under [`research/recovery-benchmark/`](../../research/recovery-benchmark/). The remaining three production scenarios (02, 03, 04) need operator-provided ground truth — see `research/recovery-benchmark/README.md` § "What the operator needs to provide." One batched operator decision unblocks both A (API key) and B (3 real scenarios + ground truth + pass/fail thresholds + baseline-C handoff docs).
+- **Scouting complete (2026-04-20).** Methodology, scoring rubric, and one worked example committed under [`benchmarks/recovery/`](../../benchmarks/recovery/). The remaining three production scenarios (02, 03, 04) need operator-provided ground truth — see `benchmarks/recovery/README.md` § "What the operator needs to provide." One batched operator decision unblocks both A (API key) and B (3 real scenarios + ground truth + pass/fail thresholds + baseline-C handoff docs).
 
 ### Deliverable C — Mode 1 client integration
 
@@ -142,13 +142,13 @@ Merge wave completed under local-gate-only discipline (GitHub Actions quota exha
 ### Deliverable A — parse-rate benchmark
 - [ ] Claude Sonnet 4.6 baseline recorded at ≥98%
 - [ ] Claude Opus 4.7 baseline recorded at ≥98%
-- [ ] `research/llm-fluency/results/` checked in
+- [ ] dated parse-rate benchmark results checked in
 - [ ] Summary writeup committed
 
 ### Deliverable B — qualitative recovery benchmark v0
 - [ ] 3–5 scenarios designed and agreed
 - [ ] Baselines A/B/C/D executed on each scenario
-- [ ] Scored writeup committed to `research/recovery-benchmark/`
+- [ ] Scored writeup committed to `benchmarks/recovery/`
 - [ ] Go/no-go call recorded
 
 ### Deliverable C — Mode 1 client integration
