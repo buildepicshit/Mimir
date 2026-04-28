@@ -4,7 +4,7 @@ The librarian. Ingests prose memory drafts; sanitises them (separates observatio
 
 > **Pre-1.0 status.** This crate is part of Mimir's active-development tree. Draft envelopes, CLI flags, quorum artifacts, and processing behavior may change before v1. Public crates.io releases wait for the first alpha.
 
-This is **Category 1** of the 2026-04-21 Rolls Royce engineering plan. See [`docs/planning/2026-04-21-rolls-royce-engineering-plan.md`](../../docs/planning/2026-04-21-rolls-royce-engineering-plan.md) § Category 1 for the full acceptance criteria.
+Current release and launch readiness status lives in [`STATUS.md`](../../STATUS.md) and [`docs/launch-readiness.md`](../../docs/launch-readiness.md).
 
 ## Status
 

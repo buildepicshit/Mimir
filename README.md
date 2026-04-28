@@ -93,6 +93,7 @@ mimir remote push
 - [`docs/concepts/`](docs/concepts/) - architecture specs.
 - [`docs/launch-readiness.md`](docs/launch-readiness.md) - OSS, engineering, and promise sign-off checklist.
 - [`docs/launch-posting-plan.md`](docs/launch-posting-plan.md) - launch article, listing, and posting plan.
+- [`docs/blog/2026-04-28-agent-memory-compiler-pipeline.md`](docs/blog/2026-04-28-agent-memory-compiler-pipeline.md) - launch article.
 
 ## Contributing
 

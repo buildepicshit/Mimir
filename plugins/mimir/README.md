@@ -16,6 +16,8 @@ For local dogfood, add this plugin through a Codex marketplace entry that points
 
 The canonical repo-local marketplace location is `.agents/plugins/marketplace.json`. Until that catalog file is present, the plugin can still be inspected as a normal local plugin bundle under `plugins/mimir`.
 
+For public launch, distribute the whole `plugins/mimir` bundle. Do not publish `skills/mimir-memory` by itself; without the setup checks and librarian-boundary docs, the skill is incomplete context.
+
 ## Verification
 
 ```bash

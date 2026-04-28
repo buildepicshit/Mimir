@@ -35,7 +35,7 @@
       "id": "GT01",
       "category": "load_bearing_decision",
       "text": "Native adapters are read-only and remain untrusted supplements until their output crosses the draft/librarian path.",
-      "source_refs": ["docs/planning/2026-04-27-progressive-recall-ladder.md", "AGENTS.md"],
+      "source_refs": [".planning/planning/2026-04-27-progressive-recall-ladder.md", "AGENTS.md"],
       "auto_fail_if_wrong": true
     },
     {
@@ -49,7 +49,7 @@
       "id": "GT03",
       "category": "project_state",
       "text": "Each matching native-memory source is classified as supported, missing, or drifted before any data is read.",
-      "source_refs": ["crates/mimir-harness/README.md", "docs/planning/2026-04-27-progressive-recall-ladder.md"],
+      "source_refs": ["crates/mimir-harness/README.md", ".planning/planning/2026-04-27-progressive-recall-ladder.md"],
       "auto_fail_if_wrong": false
     },
     {
@@ -70,21 +70,21 @@
       "id": "GT06",
       "category": "load_bearing_decision",
       "text": "Cold-start recall prefers governed Mimir records before pending drafts, capture summaries, or adapter-derived material.",
-      "source_refs": ["docs/planning/2026-04-27-cold-start-rehydration-protocol.md", "crates/mimir-harness/src/lib.rs"],
+      "source_refs": [".planning/planning/2026-04-27-cold-start-rehydration-protocol.md", "crates/mimir-harness/src/lib.rs"],
       "auto_fail_if_wrong": true
     },
     {
       "id": "GT07",
       "category": "recent_feedback_open_work",
       "text": "Future Copilot session-store support should sit behind the same adapter schema checks instead of broad raw ingestion.",
-      "source_refs": ["docs/planning/2026-04-27-progressive-recall-ladder.md"],
+      "source_refs": [".planning/planning/2026-04-27-progressive-recall-ladder.md"],
       "auto_fail_if_wrong": false
     },
     {
       "id": "GT08",
       "category": "load_bearing_decision",
       "text": "Raw native session stores are not canonical memory; every durable write still goes through drafts and the librarian.",
-      "source_refs": ["AGENTS.md", "docs/planning/2026-04-27-cold-start-rehydration-protocol.md"],
+      "source_refs": ["AGENTS.md", ".planning/planning/2026-04-27-cold-start-rehydration-protocol.md"],
       "auto_fail_if_wrong": true
     }
   ],

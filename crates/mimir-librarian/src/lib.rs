@@ -4,7 +4,7 @@
 //! log via the in-process `mimir_core::Pipeline`.
 //!
 //! Category 1 of the 2026-04-21 Rolls Royce engineering plan
-//! (`docs/planning/2026-04-21-rolls-royce-engineering-plan.md`).
+//! for librarian-governed draft processing.
 //!
 //! # Status
 //!

@@ -10,6 +10,7 @@ This is the public documentation index for Mimir. Planning notes remain availabl
 - [`bc-dr-restore.md`](bc-dr-restore.md) - Git-backed backup and restore flow.
 - [`launch-readiness.md`](launch-readiness.md) - OSS readiness, engineering quality, and promise audit.
 - [`launch-posting-plan.md`](launch-posting-plan.md) - launch article, posting, and listing plan.
+- [`blog/2026-04-28-agent-memory-compiler-pipeline.md`](blog/2026-04-28-agent-memory-compiler-pipeline.md) - public launch article.
 
 ## Architecture
 
@@ -28,6 +29,6 @@ This is the public documentation index for Mimir. Planning notes remain availabl
 - [`integrations/claude-code-hook.md`](integrations/claude-code-hook.md) - Claude hook integration.
 - [`integrations/claude-desktop-config.md`](integrations/claude-desktop-config.md) - Claude Desktop MCP setup.
 
-## Planning Archive
+## Launch Execution
 
-The [`planning/`](planning/) directory contains historical design and launch notes. Use it for provenance, not as the current task list. Current launch execution is tracked in [`launch-readiness.md`](launch-readiness.md) and [`launch-posting-plan.md`](launch-posting-plan.md).
+Historical planning notes are kept outside the public docs tree. Current launch execution is tracked in [`launch-readiness.md`](launch-readiness.md) and [`launch-posting-plan.md`](launch-posting-plan.md).

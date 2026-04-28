@@ -4,7 +4,6 @@ name: Release
 #   1. push of a `v*` tag         -> full release flow, real publish if tag is non-prerelease
 #   2. workflow_dispatch          -> dry-run by default; flip `real_publish` to actually publish
 #
-# Phase 1.5 of `docs/planning/2026-04-19-roadmap-to-prime-time.md`.
 # This workflow is end-to-end runnable today (dry-run). Tag pushes must build
 # binaries and draft the GitHub Release before crates are published; manual
 # dispatch still exercises the artifact gate without creating a release.

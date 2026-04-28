@@ -4,20 +4,24 @@ This is the concrete publication plan for Mimir's first public opening. It keeps
 
 ## Channel Order
 
-1. **GitHub public repo** - canonical source of truth.
-2. **Launch article** - explains the problem, librarian boundary, harness, and dogfood evidence without benchmark overclaiming.
-3. **Show HN** - after README, docs index, and launch article are live.
-4. **X / LinkedIn** - short pointer posts back to GitHub and the article.
-5. **Dev.to or BES Studios blog mirror** - optional mirror of the launch article.
-6. **Codex plugin bundle** - publish as a coherent Mimir workflow package, not individual skills.
-7. **Crates.io / docs.rs alpha** - after package dry-runs and crate README audit.
-8. **MCP Registry / MCP directories** - after an OCI image, MCPB bundle, or remote service artifact exists.
+1. **GitHub public repo** - canonical source of truth. Status: live.
+2. **Launch article** - explains the problem, librarian boundary, harness, and dogfood evidence without benchmark overclaiming. Status: [`blog/2026-04-28-agent-memory-compiler-pipeline.md`](blog/2026-04-28-agent-memory-compiler-pipeline.md).
+3. **Show HN + X / LinkedIn** - short pointer posts back to GitHub and the article after the article is merged.
+4. **Codex plugin bundle** - publish as a coherent Mimir workflow package, not individual skills.
+5. **Crates.io / docs.rs alpha** - after package dry-runs and crate README audit; real publish remains owner-gated and irreversible.
+
+Deferred:
+
+- **MCP Registry / MCP directories** - skip for this launch pass until an OCI image, MCPB bundle, or remote service artifact exists.
+- **Dev.to or BES Studios blog mirror** - optional article mirror after GitHub + primary posts are live.
 
 ## Launch Article
 
-Working title:
+Path: [`blog/2026-04-28-agent-memory-compiler-pipeline.md`](blog/2026-04-28-agent-memory-compiler-pipeline.md)
 
-> Agent memory should be governed like a compiler pipeline, not appended like notes.
+Title:
+
+> Agent Memory Should Be Governed Like A Compiler Pipeline
 
 Outline:
 
@@ -37,11 +41,11 @@ Title:
 
 Body:
 
-`Mimir is an experimental Rust project for agent memory governance. Agents submit untrusted memory drafts; a librarian validates and commits accepted records into an append-only canonical log with provenance. The repo includes a transparent harness (`mimir <agent> ...`), local MCP surface, operator inspection commands, Git-backed recovery mirroring, and recovery-benchmark scaffolding. It is pre-1.0: no stable API/storage promises and no benchmark victory claims yet. Looking for review on Rust correctness, security boundaries, agent adapter UX, and benchmark methodology.`
+`Mimir is an experimental Rust project for local-first agent memory governance. Agents submit untrusted memory drafts; a librarian validates and commits accepted records into an append-only canonical log with provenance. The repo includes a transparent harness (`mimir <agent> ...`), local MCP surface, operator inspection commands, Git-backed recovery mirroring, recovery-benchmark scaffolding, and a Codex plugin bundle. It is pre-1.0: no stable API/storage promises and no benchmark victory claims yet. Looking for review on Rust correctness, security boundaries, agent adapter UX, and benchmark methodology.`
 
 ## X Draft
 
-`Mimir is public: experimental local-first memory governance for AI agents. Agents propose drafts; the librarian owns canonical writes. Rust core, transparent agent harness, MCP surface, operator controls, and Git-backed recovery mirror. Pre-1.0, feedback wanted. https://github.com/buildepicshit/Mimir`
+`Mimir is public: experimental local-first memory governance for AI agents. Agents propose drafts; the librarian owns canonical writes. Rust core, transparent agent harness, MCP surface, operator controls, Codex plugin bundle, and Git-backed recovery mirror. Pre-1.0, feedback wanted. https://github.com/buildepicshit/Mimir`
 
 ## LinkedIn Draft
 
@@ -74,7 +78,8 @@ The public Codex artifact should be the repo plugin bundle at `plugins/mimir`, w
 
 Do not publish crates before:
 
-- `cargo package -p <crate> --allow-dirty` passes for every crate.
+- `cargo publish --dry-run -p mimir-core --allow-dirty` passes.
+- `cargo package -p <crate> --allow-dirty` or crate-specific publish dry-runs pass for dependent crates after `mimir-core` is available in the crates.io index.
 - Crate READMEs match the root pre-1.0 story.
 - `cargo doc --workspace --no-deps` passes.
 - Release order is confirmed: `mimir-core` before dependent crates.
@@ -97,4 +102,6 @@ Until then, GitHub plus the local `mimir-mcp` docs are the canonical MCP distrib
 - Local gate green.
 - Main CI green after the single cleanup push.
 - Launch article committed or published.
+- Codex plugin bundle checked as `plugins/mimir`, not individual skills.
+- Crates.io alpha release path checked up to dry-run; real publish explicitly approved.
 - Public issue lanes seeded for correctness, security, adapter UX, benchmarks, and docs.

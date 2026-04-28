@@ -29,9 +29,11 @@ This checklist is the current public-launch sign-off surface for Mimir. It cover
 | Release runbook | Done | `RELEASING.md`. |
 | Citation metadata | Done | `CITATION.cff`. |
 | Dependabot | Done | `.github/dependabot.yml`, monthly cadence. |
-| CI | Done on main | GitHub Actions main run was green on 2026-04-28 after PR #11. |
+| CI | Done on main | GitHub Actions main run was green on 2026-04-28 after PR #12. |
 | Docs index | Done | `docs/README.md`. |
-| Public artifact hygiene | Done | Scratch research fixtures removed from tracked files; recovery benchmark promoted to `benchmarks/recovery`; stale internal-path sweep returned no hits. |
+| Launch article | Done | `docs/blog/2026-04-28-agent-memory-compiler-pipeline.md`, linked from README and docs index. |
+| Publishing plan | Done | `docs/launch-posting-plan.md` covers GitHub, launch article, Show HN / X / LinkedIn, Codex plugin bundle, crates.io/docs.rs alpha, and the deferred MCP Registry path. |
+| Public artifact hygiene | Done | Scratch research fixtures removed from tracked files; recovery benchmark promoted to `benchmarks/recovery`; historical planning notes moved to `.planning/planning`; stale internal-path sweep returned no hits. |
 
 ## Engineering Quality Gate
 
@@ -50,7 +52,7 @@ Additional launch checks:
 ```bash
 cargo deny check
 cargo doc --workspace --no-deps
-cargo package -p mimir-core --allow-dirty
+cargo publish --dry-run -p mimir-core --allow-dirty
 cargo test -p mimir-harness --test recovery_benchmark
 python3 benchmarks/recovery/test_bench.py
 ```
@@ -88,7 +90,7 @@ Public-surface checks: confirm no tracked files remain under removed scratch dir
 - Workspace version: `0.1.0`.
 - Release tags: none.
 - First public tag target: `v0.1.0`, after cleanup branch is locally green and owner approves tagging.
-- Crates.io publishing waits for the `mimir-core` package dry-run, crate README audit, and release ordering through `mimir-core` first.
+- Crates.io publishing waits for the `mimir-core` publish dry-run, crate README audit, and release ordering through `mimir-core` first.
 - docs.rs will build after crates are published to crates.io.
 
 ## Deferred After Public Opening
@@ -96,7 +98,7 @@ Public-surface checks: confirm no tracked files remain under removed scratch dir
 - OpenSSF Scorecard run and remediation.
 - OpenSSF Best Practices Badge self-certification.
 - Live recovery benchmark report with transcripts and scorecards.
-- Broader client setup recipes beyond Claude/Codex/Copilot.
+- Broader client setup recipes beyond Claude/Codex.
 - Relationship/timeline recall APIs.
 - OCI or MCPB package for official MCP Registry submission.
 - Hosted service or service remote transport.

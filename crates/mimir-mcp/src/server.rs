@@ -948,7 +948,7 @@ impl ServerHandler for MimirServer {
             .with_server_info(Implementation::from_build_env())
             .with_protocol_version(ProtocolVersion::V_2024_11_05)
             .with_instructions(
-                "Mimir MCP server (Phase 2.3: full read+write surface). Status: mimir_status. Read tools (workspace-required): mimir_read (Lisp query → data-marked records), mimir_verify (log integrity), mimir_list_episodes (paginated session history), mimir_render_memory (single data-marked record). Write tools (lease-required): mimir_open_workspace (open store + mint 30-min lease), mimir_write (commit Lisp batch), mimir_close_episode (emit (episode :close)), mimir_release_workspace (drop lease, store stays open for reads). Lease errors: no_lease, lease_expired, lease_token_mismatch, lease_held (on second open while first is alive). See https://github.com/buildepicshit/Mimir/blob/main/docs/planning/2026-04-19-roadmap-to-prime-time.md."
+                "Mimir MCP server (Phase 2.3: full read+write surface). Status: mimir_status. Read tools (workspace-required): mimir_read (Lisp query -> data-marked records), mimir_verify (log integrity), mimir_list_episodes (paginated session history), mimir_render_memory (single data-marked record). Write tools (lease-required): mimir_open_workspace (open store + mint 30-min lease), mimir_write (commit Lisp batch), mimir_close_episode (emit (episode :close)), mimir_release_workspace (drop lease, store stays open for reads). Lease errors: no_lease, lease_expired, lease_token_mismatch, lease_held (on second open while first is alive). See https://github.com/buildepicshit/Mimir/blob/main/docs/README.md."
                     .to_string(),
             )
     }

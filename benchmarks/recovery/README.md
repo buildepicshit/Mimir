@@ -1,6 +1,6 @@
 # Recovery benchmark (qualitative v0)
 
-Scaffolding for Delivery Plan item **B** — the qualitative BC/DR recovery benchmark that measures whether Mimir delivers meaningfully better catastrophic-loss recovery than the markdown-file baselines. The *why* lives in [`docs/planning/2026-04-20-mission-scope-and-recovery-benchmark.md`](../../docs/planning/2026-04-20-mission-scope-and-recovery-benchmark.md) § 8 and [`docs/planning/2026-04-20-delivery-plan.md`](../../docs/planning/2026-04-20-delivery-plan.md) § 2 / B. This directory holds the *how*.
+Scaffolding for the qualitative BC/DR recovery benchmark that measures whether Mimir delivers meaningfully better catastrophic-loss recovery than the markdown-file baselines. This directory holds the methodology, fixtures, environment contracts, transcript gates, and score validation. Historical rationale lives in the hidden planning archive.
 
 ## Status
 

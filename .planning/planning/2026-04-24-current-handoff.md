@@ -80,9 +80,9 @@ Functional changes:
 Documentation changes:
 
 - `docs/concepts/consensus-quorum.md` added as a draft spec.
-- `docs/planning/2026-04-24-current-handoff.md` added as this continuation note.
-- `AGENTS.md`, `STATUS.md`, `docs/concepts/README.md`, `docs/concepts/scope-model.md`, and `docs/planning/2026-04-24-multi-agent-memory-control-plane.md` updated to include consensus quorum.
-- `docs/planning/2026-04-24-transparent-agent-harness.md` added to capture the `mimir <agent> [agent args...]` launch-boundary agreement, with cross-links from `AGENTS.md`, `STATUS.md`, `scope-model.md`, and the control-plane plan; later updated to record the shipped first scaffold.
+- This continuation note was originally added under the public docs planning tree and is now archived under `.planning/planning`.
+- `AGENTS.md`, `STATUS.md`, `docs/concepts/README.md`, `docs/concepts/scope-model.md`, and the multi-agent memory control-plane planning note were updated to include consensus quorum.
+- The transparent agent harness planning note captured the `mimir <agent> [agent args...]` launch-boundary agreement, with cross-links from `AGENTS.md`, `STATUS.md`, `scope-model.md`, and the control-plane plan; later updated to record the shipped first scaffold.
 - `crates/mimir-librarian/README.md` updated for submit/sweep/lifecycle/run usage.
 
 ## Verification
