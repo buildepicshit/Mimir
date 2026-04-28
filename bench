@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import time
@@ -1283,6 +1284,7 @@ def execute_launch_contract(contract: dict[str, Any]) -> dict[str, Any]:
         completed = subprocess.run(
             argv,
             cwd=cwd,
+            env=launch_child_env(),
             input=stdin_text,
             capture_output=True,
             text=True,
@@ -1327,6 +1329,14 @@ def execute_launch_contract(contract: dict[str, Any]) -> dict[str, Any]:
             "duration_seconds": round(duration, 3),
             "success": False,
         }
+
+
+def launch_child_env() -> dict[str, str]:
+    return {
+        key: value
+        for key, value in os.environ.items()
+        if not key.startswith("MIMIR_")
+    }
 
 
 def timeout_stream(value: str | bytes | None) -> str:
