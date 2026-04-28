@@ -1,0 +1,2336 @@
+#!/usr/bin/env python3
+"""Repository-local benchmark entry point.
+
+Currently implemented:
+  ./bench recovery --list
+  ./bench recovery --scenario <id> --dry-run
+  ./bench recovery --scenario <id> --init-results
+  ./bench recovery --scenario <id> --prepare-envs
+  ./bench recovery --scenario <id> --validate-envs
+  ./bench recovery --scenario <id> --launch-plan
+  ./bench recovery --scenario <id> --write-launch-contracts
+  ./bench recovery --scenario <id> --validate-launch-contracts
+  ./bench recovery --scenario <id> --execute-launch-contracts --approve-live-execution <id>
+  ./bench recovery --scenario <id> --validate-transcripts
+  ./bench recovery --scenario <id> --score-results
+  ./bench recovery --summary-results
+
+The recovery command is dry-run by default. Live baseline execution is
+available only through validated launch contracts and an explicit
+per-scenario approval token.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+import sys
+import time
+from pathlib import Path
+from typing import Any
+
+REPO_ROOT = Path(__file__).resolve().parent
+DEFAULT_SCENARIOS_DIR = REPO_ROOT / "research" / "recovery-benchmark" / "scenarios"
+RESULTS_ROOT = REPO_ROOT / "research" / "recovery-benchmark" / "results"
+
+
+class BenchError(Exception):
+    """User-facing benchmark command error."""
+
+
+def load_scenarios(scenarios_dir: Path) -> list[dict[str, Any]]:
+    if not scenarios_dir.is_dir():
+        raise BenchError(f"scenarios directory does not exist: {scenarios_dir}")
+    scenarios: list[dict[str, Any]] = []
+    for path in sorted(scenarios_dir.glob("*.json")):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as error:
+            raise BenchError(f"{path}: invalid JSON: {error}") from error
+        validate_scenario(data, path)
+        scenario_id = require_text(data, "id", path)
+        if path.stem != scenario_id:
+            raise BenchError(f"{path}: id must match filename stem")
+        scenarios.append(data)
+    if not scenarios:
+        raise BenchError(f"no scenario JSON files found in {scenarios_dir}")
+    return scenarios
+
+
+def validate_scenario(data: Any, path: Path) -> None:
+    if not isinstance(data, dict):
+        raise BenchError(f"{path}: scenario must be an object")
+    if data.get("schema_version") != 1:
+        raise BenchError(f"{path}: schema_version must be 1")
+    for field in (
+        "id",
+        "status",
+        "title",
+        "source_markdown",
+        "situation",
+        "cold_start_prompt",
+        "work_instruction_test",
+    ):
+        require_text(data, field, path)
+    cutoff = data.get("cutoff_minutes")
+    if isinstance(cutoff, bool) or not isinstance(cutoff, int) or cutoff <= 0:
+        raise BenchError(f"{path}: cutoff_minutes must be a positive integer")
+
+    baselines = require_list(data, "baselines", path, allow_empty=False)
+    baseline_ids = [
+        item.get("id") if isinstance(item, dict) else None for item in baselines
+    ]
+    if baseline_ids != ["A", "B", "C", "D"]:
+        raise BenchError(f"{path}: baselines must be exactly A, B, C, D")
+    for index, baseline in enumerate(baselines):
+        label = f"baselines[{index}]"
+        require_item_object(baseline, path, label)
+        require_nested_text(baseline, "id", path, label)
+        require_nested_text(baseline, "name", path, label)
+        require_nested_text(baseline, "preserved_state", path, label)
+
+    ground_truth = require_list(data, "ground_truth", path, allow_empty=False)
+    ground_truth_ids = []
+    for index, item in enumerate(ground_truth):
+        label = f"ground_truth[{index}]"
+        require_item_object(item, path, label)
+        ground_truth_ids.append(require_nested_text(item, "id", path, label))
+        require_nested_text(item, "category", path, label)
+        require_nested_text(item, "text", path, label)
+        require_string_list(item, "source_refs", path, label)
+        if not isinstance(item.get("auto_fail_if_wrong"), bool):
+            raise BenchError(f"{path}: {label}.auto_fail_if_wrong must be a boolean")
+    require_unique_ids(ground_truth_ids, path, "ground_truth")
+
+    staleness_tests = require_list(data, "staleness_tests", path, allow_empty=True)
+    staleness_test_ids = []
+    for index, item in enumerate(staleness_tests):
+        label = f"staleness_tests[{index}]"
+        require_item_object(item, path, label)
+        staleness_test_ids.append(require_nested_text(item, "id", path, label))
+        require_nested_text(item, "superseded_fact", path, label)
+        require_nested_text(item, "current_fact", path, label)
+        require_nested_text(item, "expected_behavior", path, label)
+    require_unique_ids(staleness_test_ids, path, "staleness_tests")
+
+
+def require_text(data: dict[str, Any], field: str, path: Path) -> str:
+    value = data.get(field)
+    if not isinstance(value, str) or not value.strip():
+        raise BenchError(f"{path}: missing non-empty string field {field}")
+    return value
+
+
+def require_nested_text(
+    data: dict[str, Any],
+    field: str,
+    path: Path,
+    label: str,
+) -> str:
+    value = data.get(field)
+    if not isinstance(value, str) or not value.strip():
+        raise BenchError(f"{path}: {label}.{field} must be a non-empty string")
+    return value
+
+
+def require_list(
+    data: dict[str, Any],
+    field: str,
+    path: Path,
+    *,
+    allow_empty: bool,
+) -> list[Any]:
+    value = data.get(field)
+    if not isinstance(value, list) or (not allow_empty and not value):
+        qualifier = "a list" if allow_empty else "a non-empty list"
+        raise BenchError(f"{path}: {field} must be {qualifier}")
+    return value
+
+
+def require_item_object(value: Any, path: Path, label: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise BenchError(f"{path}: {label} must be an object")
+    return value
+
+
+def require_string_list(
+    data: dict[str, Any],
+    field: str,
+    path: Path,
+    label: str,
+) -> list[str]:
+    value = data.get(field)
+    if (
+        not isinstance(value, list)
+        or not value
+        or any(not isinstance(item, str) or not item.strip() for item in value)
+    ):
+        raise BenchError(
+            f"{path}: {label}.{field} must be a non-empty list of strings"
+        )
+    return value
+
+
+def require_unique_ids(ids: list[str], path: Path, label: str) -> None:
+    seen = set()
+    duplicates = []
+    for item_id in ids:
+        if item_id in seen and item_id not in duplicates:
+            duplicates.append(item_id)
+        seen.add(item_id)
+    if duplicates:
+        raise BenchError(
+            f"{path}: {label} ids must be unique: {', '.join(duplicates)}"
+        )
+
+
+def scenario_summary(scenario: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": scenario["id"],
+        "title": scenario["title"],
+        "status": scenario["status"],
+        "ground_truth_count": len(scenario["ground_truth"]),
+        "staleness_test_count": len(scenario["staleness_tests"]),
+    }
+
+
+def find_scenario(scenarios: list[dict[str, Any]], scenario_id: str) -> dict[str, Any]:
+    for scenario in scenarios:
+        if scenario["id"] == scenario_id:
+            return scenario
+    known = ", ".join(scenario["id"] for scenario in scenarios)
+    raise BenchError(f"unknown scenario {scenario_id}; known scenarios: {known}")
+
+
+def recovery_list_payload(scenarios: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "mode": "list",
+        "scenarios": [scenario_summary(scenario) for scenario in scenarios],
+    }
+
+
+def recovery_dry_run_payload(
+    scenario: dict[str, Any],
+    results_root: Path = RESULTS_ROOT,
+) -> dict[str, Any]:
+    scenario_id = scenario["id"]
+    result_dir = results_root / scenario_id
+    baselines = []
+    expected_artifacts = []
+    for baseline in scenario["baselines"]:
+        baseline_id = baseline["id"]
+        transcript = result_dir / f"transcript-{baseline_id}.md"
+        baselines.append(
+            {
+                "id": baseline_id,
+                "name": baseline["name"],
+                "preserved_state": baseline["preserved_state"],
+                "transcript_path": display_path(transcript),
+            }
+        )
+        expected_artifacts.append(display_path(transcript))
+    expected_artifacts.extend(
+        [
+            display_path(result_dir / "scorecard.md"),
+            display_path(result_dir / "scores.json"),
+            display_path(result_dir / "notes.md"),
+            display_path(result_dir / "run-plan.json"),
+        ]
+    )
+
+    load_bearing = [
+        item
+        for item in scenario["ground_truth"]
+        if item["category"] == "load_bearing_decision"
+    ]
+    return {
+        "mode": "dry_run",
+        "live_execution": False,
+        "scenario_id": scenario_id,
+        "title": scenario["title"],
+        "status": scenario["status"],
+        "cutoff_minutes": scenario["cutoff_minutes"],
+        "cold_start_prompt": scenario["cold_start_prompt"],
+        "work_instruction_test": scenario["work_instruction_test"],
+        "ground_truth_count": len(scenario["ground_truth"]),
+        "load_bearing_decision_count": len(load_bearing),
+        "staleness_test_count": len(scenario["staleness_tests"]),
+        "baselines": baselines,
+        "expected_artifacts": expected_artifacts,
+        "next_action": (
+            "Create isolated baseline environments and capture transcripts; "
+            "use validated launch contracts plus explicit approval for live execution."
+        ),
+    }
+
+
+def recovery_init_results_payload(
+    scenario: dict[str, Any],
+    results_root: Path,
+) -> dict[str, Any]:
+    scenario_id = scenario["id"]
+    result_dir = results_root / scenario_id
+    files = recovery_result_files(scenario, result_dir, results_root)
+    created = []
+    skipped = []
+    for path, content in files:
+        if path.exists():
+            if not path.is_file():
+                raise BenchError(f"artifact path exists and is not a file: {path}")
+            skipped.append(display_path(path))
+            continue
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+        created.append(display_path(path))
+
+    return {
+        "mode": "init_results",
+        "live_execution": False,
+        "scenario_id": scenario_id,
+        "title": scenario["title"],
+        "status": scenario["status"],
+        "result_dir": display_path(result_dir),
+        "created_count": len(created),
+        "skipped_count": len(skipped),
+        "created_artifacts": created,
+        "skipped_artifacts": skipped,
+        "next_action": (
+            "Run each baseline manually, replace transcript placeholders, "
+            "then fill scorecard.md."
+        ),
+    }
+
+
+def recovery_result_files(
+    scenario: dict[str, Any],
+    result_dir: Path,
+    results_root: Path,
+) -> list[tuple[Path, str]]:
+    files: list[tuple[Path, str]] = []
+    for baseline in scenario["baselines"]:
+        files.append(
+            (
+                result_dir / f"transcript-{baseline['id']}.md",
+                transcript_template(scenario, baseline),
+            )
+        )
+    files.extend(
+        [
+            (result_dir / "scorecard.md", scorecard_template(scenario)),
+            (result_dir / "scores.json", scores_template(scenario)),
+            (result_dir / "notes.md", notes_template(scenario)),
+            (
+                result_dir / "run-plan.json",
+                json.dumps(
+                    recovery_dry_run_payload(scenario, results_root),
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+            ),
+        ]
+    )
+    return files
+
+
+def recovery_validate_transcripts_payload(
+    scenario: dict[str, Any],
+    results_root: Path,
+) -> dict[str, Any]:
+    scenario_id = scenario["id"]
+    result_dir = results_root / scenario_id
+    rows = []
+    for baseline in scenario["baselines"]:
+        baseline_id = baseline["id"]
+        transcript_path = result_dir / f"transcript-{baseline_id}.md"
+        captured, problem = transcript_capture_status(transcript_path, scenario)
+        rows.append(
+            {
+                "baseline_id": baseline_id,
+                "baseline_name": baseline["name"],
+                "transcript_path": display_path(transcript_path),
+                "captured": captured,
+                "problem": problem,
+            }
+        )
+    captured_count = sum(1 for row in rows if row["captured"])
+    placeholder_count = sum(1 for row in rows if row["problem"] == "placeholder")
+    missing_count = sum(1 for row in rows if row["problem"] == "missing")
+    return {
+        "mode": "validate_transcripts",
+        "live_execution": False,
+        "scenario_id": scenario_id,
+        "title": scenario["title"],
+        "ready_for_scoring": captured_count == len(rows),
+        "captured_count": captured_count,
+        "placeholder_count": placeholder_count,
+        "missing_count": missing_count,
+        "baselines": rows,
+    }
+
+
+def transcript_capture_status(
+    path: Path,
+    scenario: dict[str, Any],
+) -> tuple[bool, str | None]:
+    if not path.exists():
+        return False, "missing"
+    if not path.is_file():
+        return False, "not_file"
+    text = path.read_text(encoding="utf-8")
+    if not text.strip():
+        return False, "empty"
+    if "<paste full agent transcript here>" in text:
+        return False, "placeholder"
+    if (
+        scenario["cold_start_prompt"] not in text
+        or scenario["work_instruction_test"] not in text
+    ):
+        return False, "missing_prompt_evidence"
+    return True, None
+
+
+def recovery_prepare_envs_payload(
+    scenario: dict[str, Any],
+    results_root: Path,
+) -> dict[str, Any]:
+    scenario_id = scenario["id"]
+    result_dir = results_root / scenario_id
+    files = recovery_environment_files(scenario, result_dir)
+    created = []
+    skipped = []
+    for path, content in files:
+        if path.exists():
+            if not path.is_file():
+                raise BenchError(f"environment path exists and is not a file: {path}")
+            skipped.append(display_path(path))
+            continue
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+        created.append(display_path(path))
+    return {
+        "mode": "prepare_envs",
+        "live_execution": False,
+        "scenario_id": scenario_id,
+        "title": scenario["title"],
+        "environment_root": display_path(result_dir / "environments"),
+        "created_count": len(created),
+        "skipped_count": len(skipped),
+        "created_artifacts": created,
+        "skipped_artifacts": skipped,
+        "next_action": (
+            "Populate preserved-state directories and launch baselines manually; "
+            "or validate launch contracts and use explicit live execution."
+        ),
+    }
+
+
+def recovery_environment_files(
+    scenario: dict[str, Any],
+    result_dir: Path,
+) -> list[tuple[Path, str]]:
+    files: list[tuple[Path, str]] = []
+    for baseline in scenario["baselines"]:
+        env_dir = result_dir / "environments" / baseline["id"]
+        files.extend(
+            [
+                (
+                    env_dir / "manifest.json",
+                    environment_manifest(scenario, baseline, result_dir),
+                ),
+                (
+                    env_dir / "cold-start-prompt.txt",
+                    scenario["cold_start_prompt"] + "\n",
+                ),
+                (
+                    env_dir / "work-instruction-test.txt",
+                    scenario["work_instruction_test"] + "\n",
+                ),
+                (env_dir / "preserved-state.md", preserved_state_template(baseline)),
+                (
+                    env_dir / "materialized-inputs.json",
+                    materialized_inputs_template(scenario, baseline),
+                ),
+                (env_dir / "README.md", environment_readme(scenario, baseline)),
+            ]
+        )
+    return files
+
+
+def environment_manifest(
+    scenario: dict[str, Any],
+    baseline: dict[str, Any],
+    result_dir: Path,
+) -> str:
+    baseline_id = baseline["id"]
+    payload = {
+        "schema_version": 1,
+        "mode": "environment_scaffold",
+        "live_execution": False,
+        "scenario_id": scenario["id"],
+        "scenario_title": scenario["title"],
+        "scenario_status": scenario["status"],
+        "baseline_id": baseline_id,
+        "baseline_name": baseline["name"],
+        "preserved_state": baseline["preserved_state"],
+        "cold_start_prompt_path": display_path(
+            result_dir / "environments" / baseline_id / "cold-start-prompt.txt"
+        ),
+        "work_instruction_test_path": display_path(
+            result_dir / "environments" / baseline_id / "work-instruction-test.txt"
+        ),
+        "preserved_state_path": display_path(
+            result_dir / "environments" / baseline_id / "preserved-state.md"
+        ),
+        "materialized_inputs_path": display_path(
+            result_dir / "environments" / baseline_id / "materialized-inputs.json"
+        ),
+        "transcript_path": display_path(result_dir / f"transcript-{baseline_id}.md"),
+    }
+    return json.dumps(payload, indent=2, sort_keys=True) + "\n"
+
+
+def preserved_state_template(baseline: dict[str, Any]) -> str:
+    return "\n".join(
+        [
+            f"# Baseline {baseline['id']} - preserved state",
+            "",
+            baseline["preserved_state"],
+            "",
+            "## Materialized Inputs",
+            "",
+            "<record exact files, directories, logs, or handoff docs copied here>",
+            "",
+        ]
+    )
+
+
+def environment_readme(scenario: dict[str, Any], baseline: dict[str, Any]) -> str:
+    return "\n".join(
+        [
+            f"# Scenario {scenario['id']} - baseline {baseline['id']}",
+            "",
+            f"Scenario: {scenario['title']}",
+            f"Baseline: {baseline['name']}",
+            "",
+            "This directory is a deterministic scaffold for one recovery baseline.",
+            "It does not launch an agent or prove recovery by itself.",
+            "",
+            "## Files",
+            "",
+            "- `manifest.json` - machine-readable environment scaffold.",
+            "- `cold-start-prompt.txt` - prompt to issue to the agent.",
+            "- `work-instruction-test.txt` - productive-state gate.",
+            "- `preserved-state.md` - preserved-state setup notes.",
+            "- `materialized-inputs.json` - required preserved-state inputs.",
+            "",
+            "## Transcript Target",
+            "",
+            f"Write the captured transcript to `../../transcript-{baseline['id']}.md`.",
+            "",
+        ]
+    )
+
+
+def materialized_inputs_template(
+    scenario: dict[str, Any],
+    baseline: dict[str, Any],
+) -> str:
+    return (
+        json.dumps(
+            {
+                "schema_version": 1,
+                "scenario_id": scenario["id"],
+                "baseline_id": baseline["id"],
+                "baseline_name": baseline["name"],
+                "inputs": baseline_required_inputs(baseline),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    )
+
+
+def baseline_required_inputs(baseline: dict[str, Any]) -> list[dict[str, Any]]:
+    baseline_id = baseline["id"]
+    if baseline_id == "A":
+        return []
+    if baseline_id == "B":
+        return [
+            {
+                "id": "claude_markdown_memory_dir",
+                "kind": "directory",
+                "required": True,
+                "description": "Preserved Claude auto-memory markdown directory for this scenario.",
+                "path": None,
+                "verified": False,
+            }
+        ]
+    if baseline_id == "C":
+        return [
+            {
+                "id": "curated_handoff_doc",
+                "kind": "file",
+                "required": True,
+                "description": "Operator-written STATUS-style handoff document for this scenario.",
+                "path": None,
+                "verified": False,
+            }
+        ]
+    if baseline_id == "D":
+        return [
+            {
+                "id": "canonical_mimir_log",
+                "kind": "file",
+                "required": True,
+                "description": "Canonical Mimir log or restored recovery mirror for this scenario.",
+                "path": None,
+                "verified": False,
+            }
+        ]
+    return [
+        {
+            "id": "baseline_preserved_state",
+            "kind": "manual",
+            "required": True,
+            "description": baseline["preserved_state"],
+            "path": None,
+            "verified": False,
+        }
+    ]
+
+
+def transcript_template(scenario: dict[str, Any], baseline: dict[str, Any]) -> str:
+    return "\n".join(
+        [
+            f"# Scenario {scenario['id']} - transcript {baseline['id']}",
+            "",
+            f"Scenario: {scenario['title']}",
+            f"Status: {scenario['status']}",
+            f"Baseline: {baseline['id']} - {baseline['name']}",
+            f"Preserved state: {baseline['preserved_state']}",
+            f"Cutoff: {scenario['cutoff_minutes']} minutes",
+            "",
+            "## Cold-start prompt",
+            "",
+            scenario["cold_start_prompt"],
+            "",
+            "## Work-instruction test",
+            "",
+            scenario["work_instruction_test"],
+            "",
+            "## Environment setup",
+            "",
+            "<record exact setup commands and preserved-state source here>",
+            "",
+            "## Transcript",
+            "",
+            "<paste full agent transcript here>",
+            "",
+        ]
+    )
+
+
+def scorecard_template(scenario: dict[str, Any]) -> str:
+    load_bearing_count = sum(
+        1
+        for item in scenario["ground_truth"]
+        if item["category"] == "load_bearing_decision"
+    )
+    lines = [
+        f"# Scenario {scenario['id']} - scorecard",
+        "",
+        f"Scenario: {scenario['title']}",
+        f"Status: {scenario['status']}",
+        f"Cutoff: {scenario['cutoff_minutes']} minutes",
+        f"Ground truth items: {len(scenario['ground_truth'])}",
+        f"Load-bearing decisions: {load_bearing_count}",
+        f"Staleness tests: {len(scenario['staleness_tests'])}",
+        "Run date: <YYYY-MM-DD>",
+        "Operator: <name>",
+        "",
+        "## Prompts",
+        "",
+        f"Cold-start prompt: {scenario['cold_start_prompt']}",
+        f"Work-instruction test: {scenario['work_instruction_test']}",
+        "",
+        "## Ground Truth Checklist",
+        "",
+        "| ID | Category | Auto-fail if wrong | Expected fact | Rating | Notes |",
+        "|---|---|---:|---|---|---|",
+    ]
+    for item in scenario["ground_truth"]:
+        auto_fail = "yes" if item.get("auto_fail_if_wrong") else "no"
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    markdown_cell(item["id"]),
+                    markdown_cell(item["category"]),
+                    auto_fail,
+                    markdown_cell(item["text"]),
+                    "<C|P|W|S>",
+                    "",
+                ]
+            )
+            + " |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Staleness Checks",
+            "",
+            "| ID | Superseded fact | Current fact | Expected behavior | Result | Notes |",
+            "|---|---|---|---|---|---|",
+        ]
+    )
+    for item in scenario["staleness_tests"]:
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    markdown_cell(item["id"]),
+                    markdown_cell(item["superseded_fact"]),
+                    markdown_cell(item["current_fact"]),
+                    markdown_cell(item["expected_behavior"]),
+                    "<Fresh|Stale|Qualified|Silent>",
+                    "",
+                ]
+            )
+            + " |"
+        )
+    for baseline in scenario["baselines"]:
+        lines.extend(
+            [
+                "",
+                f"## Baseline {baseline['id']} - {baseline['name']}",
+                "",
+                f"Preserved state: {baseline['preserved_state']}",
+                "",
+                "- Time to productive state: <N minutes | DNR>",
+                (
+                    "- Fact correctness: C <N> / P <N> / W <N> / S <N> "
+                    "- <C %> unprompted-correct"
+                ),
+                "- Hallucinations: <N> out of <M> decision-assertions",
+                "- Staleness: <N stale occurrences>",
+                "- Rehydration tokens: input <N>, output <N>",
+                "- Transcript: "
+                f"transcript-{baseline['id']}.md",
+            ]
+        )
+    lines.extend(
+        [
+            "",
+            "## Operator Commentary",
+            "",
+            "<What surprised. Where the signal was strongest. Gaps Mimir revealed in itself.>",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def scores_template(scenario: dict[str, Any]) -> str:
+    baselines: dict[str, Any] = {}
+    for baseline in scenario["baselines"]:
+        baselines[baseline["id"]] = {
+            "time_to_productive_minutes": None,
+            "fact_correctness": {
+                "correct": None,
+                "prompted": None,
+                "wrong": None,
+                "silent": None,
+            },
+            "decision_assertions": {
+                "hallucinations": None,
+                "total": None,
+            },
+            "staleness": {
+                "stale_occurrences": None,
+            },
+            "rehydration_tokens": {
+                "input": None,
+                "output": None,
+            },
+        }
+    return (
+        json.dumps(
+            {
+                "schema_version": 1,
+                "scenario_id": scenario["id"],
+                "baselines": baselines,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    )
+
+
+def notes_template(scenario: dict[str, Any]) -> str:
+    return "\n".join(
+        [
+            f"# Scenario {scenario['id']} - notes",
+            "",
+            f"Scenario: {scenario['title']}",
+            f"Status: {scenario['status']}",
+            "",
+            "## Operator Commentary",
+            "",
+            "<free-form notes from the run>",
+            "",
+            "## Surprises",
+            "",
+            "<unexpected behavior, positive or negative>",
+            "",
+            "## Mimir Gaps",
+            "",
+            "<product or harness gaps exposed by this scenario>",
+            "",
+            "## Recommendation",
+            "",
+            "<scenario-level win/loss and why>",
+            "",
+        ]
+    )
+
+
+def markdown_cell(value: Any) -> str:
+    return str(value).replace("\n", " ").replace("|", "\\|")
+
+
+def display_path(path: Path) -> str:
+    resolved = path.resolve()
+    try:
+        return resolved.relative_to(REPO_ROOT).as_posix()
+    except ValueError:
+        return str(resolved)
+
+
+def recovery_score_results_payload(
+    scenario: dict[str, Any],
+    results_root: Path,
+) -> dict[str, Any]:
+    scenario_id = scenario["id"]
+    result_dir = results_root / scenario_id
+    scores_path = result_dir / "scores.json"
+    if not scores_path.is_file():
+        raise BenchError(
+            f"scores file does not exist: {scores_path}; run --init-results"
+        )
+    try:
+        scores = json.loads(scores_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise BenchError(f"{scores_path}: invalid JSON: {error}") from error
+    missing_fields, summaries = validate_scores(scenario, scores, scores_path)
+    transcript_validation = recovery_validate_transcripts_payload(scenario, results_root)
+    transcript_problems = transcript_problem_rows(transcript_validation)
+    complete = not missing_fields and not transcript_problems
+    return {
+        "mode": "score_results",
+        "live_execution": False,
+        "scenario_id": scenario_id,
+        "title": scenario["title"],
+        "score_path": display_path(scores_path),
+        "complete": complete,
+        "missing_count": len(missing_fields),
+        "missing_fields": missing_fields,
+        "transcripts_ready": transcript_validation["ready_for_scoring"],
+        "transcript_problem_count": len(transcript_problems),
+        "transcript_problems": transcript_problems,
+        "baseline_summaries": summaries if complete else [],
+    }
+
+
+def recovery_validate_envs_payload(
+    scenario: dict[str, Any],
+    results_root: Path,
+) -> dict[str, Any]:
+    scenario_id = scenario["id"]
+    result_dir = results_root / scenario_id
+    rows = []
+    for baseline in scenario["baselines"]:
+        baseline_id = baseline["id"]
+        env_dir = result_dir / "environments" / baseline_id
+        manifest_path = env_dir / "manifest.json"
+        inputs_path = env_dir / "materialized-inputs.json"
+        missing_files = []
+        for path in (
+            manifest_path,
+            env_dir / "cold-start-prompt.txt",
+            env_dir / "work-instruction-test.txt",
+            env_dir / "preserved-state.md",
+            inputs_path,
+            env_dir / "README.md",
+        ):
+            if not path.is_file():
+                missing_files.append(display_path(path))
+
+        missing_inputs: list[str] = []
+        invalid_inputs: list[dict[str, str]] = []
+        if inputs_path.is_file():
+            inputs = load_materialized_inputs(inputs_path, scenario_id, baseline_id)
+            expected_required_ids = [
+                item["id"]
+                for item in baseline_required_inputs(baseline)
+                if item.get("required")
+            ]
+            actual_input_ids = {item["id"] for item in inputs["inputs"]}
+            for required_id in expected_required_ids:
+                if required_id not in actual_input_ids:
+                    missing_inputs.append(required_id)
+            for item in inputs["inputs"]:
+                if item.get("required") and (
+                    not item.get("path") or item.get("verified") is not True
+                ):
+                    missing_inputs.append(item["id"])
+                elif item.get("required"):
+                    problem = materialized_input_path_problem(item)
+                    if problem is not None:
+                        invalid_inputs.append(
+                            {
+                                "id": item["id"],
+                                "path": str(item.get("path")),
+                                "problem": problem,
+                            }
+                        )
+        elif not missing_files:
+            missing_inputs.append("materialized_inputs")
+
+        ready = not missing_files and not missing_inputs and not invalid_inputs
+        rows.append(
+            {
+                "baseline_id": baseline_id,
+                "baseline_name": baseline["name"],
+                "ready_for_launch": ready,
+                "environment_dir": display_path(env_dir),
+                "missing_files": missing_files,
+                "missing_inputs": missing_inputs,
+                "invalid_inputs": invalid_inputs,
+            }
+        )
+    ready_count = sum(1 for row in rows if row["ready_for_launch"])
+    return {
+        "mode": "validate_envs",
+        "live_execution": False,
+        "scenario_id": scenario_id,
+        "title": scenario["title"],
+        "ready_count": ready_count,
+        "blocked_count": len(rows) - ready_count,
+        "baselines": rows,
+    }
+
+
+def recovery_launch_plan_payload(
+    scenario: dict[str, Any],
+    results_root: Path,
+) -> dict[str, Any]:
+    scenario_id = scenario["id"]
+    result_dir = results_root / scenario_id
+    validation = recovery_validate_envs_payload(scenario, results_root)
+    rows = []
+    for baseline, validation_row in zip(
+        scenario["baselines"],
+        validation["baselines"],
+        strict=True,
+    ):
+        baseline_id = baseline["id"]
+        blocked_reasons = launch_blocked_reasons(validation_row)
+        rows.append(
+            {
+                "baseline_id": baseline_id,
+                "baseline_name": baseline["name"],
+                "ready_for_launch": validation_row["ready_for_launch"],
+                "blocked_reasons": blocked_reasons,
+                "launch_contract": launch_contract(scenario, baseline, result_dir)
+                if validation_row["ready_for_launch"]
+                else None,
+            }
+        )
+    launchable_count = sum(1 for row in rows if row["ready_for_launch"])
+    return {
+        "mode": "launch_plan",
+        "live_execution": False,
+        "scenario_id": scenario_id,
+        "title": scenario["title"],
+        "ready_to_launch": launchable_count == len(rows),
+        "launchable_count": launchable_count,
+        "blocked_count": len(rows) - launchable_count,
+        "baselines": rows,
+        "next_action": (
+            "Review launch contracts, then write and validate them; "
+            "this command does not launch agents."
+        ),
+    }
+
+
+def recovery_write_launch_contracts_payload(
+    scenario: dict[str, Any],
+    results_root: Path,
+) -> dict[str, Any]:
+    scenario_id = scenario["id"]
+    result_dir = results_root / scenario_id
+    launch_plan = recovery_launch_plan_payload(scenario, results_root)
+    rows = []
+    created = []
+    skipped = []
+    if not launch_plan["ready_to_launch"]:
+        for row in launch_plan["baselines"]:
+            baseline_id = row["baseline_id"]
+            rows.append(
+                {
+                    "baseline_id": baseline_id,
+                    "baseline_name": row["baseline_name"],
+                    "ready_for_launch": row["ready_for_launch"],
+                    "blocked_reasons": row["blocked_reasons"],
+                    "launch_contract_path": display_path(
+                        result_dir
+                        / "environments"
+                        / baseline_id
+                        / "launch-contract.json"
+                    ),
+                    "written": False,
+                    "skipped": False,
+                }
+            )
+        return {
+            "mode": "write_launch_contracts",
+            "live_execution": False,
+            "scenario_id": scenario_id,
+            "title": scenario["title"],
+            "ready_to_launch": False,
+            "created_count": 0,
+            "skipped_count": 0,
+            "blocked_count": launch_plan["blocked_count"],
+            "created_artifacts": [],
+            "skipped_artifacts": [],
+            "baselines": rows,
+            "next_action": (
+                "Populate all baseline environments before writing launch contracts."
+            ),
+        }
+
+    for row in launch_plan["baselines"]:
+        baseline_id = row["baseline_id"]
+        contract_path = (
+            result_dir / "environments" / baseline_id / "launch-contract.json"
+        )
+        if contract_path.exists():
+            if not contract_path.is_file():
+                raise BenchError(
+                    f"launch contract path exists and is not a file: {contract_path}"
+                )
+            skipped.append(display_path(contract_path))
+            written = False
+            was_skipped = True
+        else:
+            contract_path.parent.mkdir(parents=True, exist_ok=True)
+            contract_path.write_text(
+                json.dumps(row["launch_contract"], indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+            created.append(display_path(contract_path))
+            written = True
+            was_skipped = False
+        rows.append(
+            {
+                "baseline_id": baseline_id,
+                "baseline_name": row["baseline_name"],
+                "ready_for_launch": True,
+                "blocked_reasons": [],
+                "launch_contract_path": display_path(contract_path),
+                "written": written,
+                "skipped": was_skipped,
+            }
+        )
+
+    return {
+        "mode": "write_launch_contracts",
+        "live_execution": False,
+        "scenario_id": scenario_id,
+        "title": scenario["title"],
+        "ready_to_launch": True,
+        "created_count": len(created),
+        "skipped_count": len(skipped),
+        "blocked_count": 0,
+        "created_artifacts": created,
+        "skipped_artifacts": skipped,
+        "baselines": rows,
+        "next_action": (
+            "Launch each baseline from its materialized contract and capture transcripts."
+        ),
+    }
+
+
+def recovery_validate_launch_contracts_payload(
+    scenario: dict[str, Any],
+    results_root: Path,
+) -> dict[str, Any]:
+    scenario_id = scenario["id"]
+    result_dir = results_root / scenario_id
+    launch_plan = recovery_launch_plan_payload(scenario, results_root)
+    rows = []
+    for row in launch_plan["baselines"]:
+        baseline_id = row["baseline_id"]
+        contract_path = (
+            result_dir / "environments" / baseline_id / "launch-contract.json"
+        )
+        problem = launch_contract_problem(contract_path, row, scenario)
+        rows.append(
+            {
+                "baseline_id": baseline_id,
+                "baseline_name": row["baseline_name"],
+                "ready_for_launch": row["ready_for_launch"],
+                "launch_contract_path": display_path(contract_path),
+                "valid": problem is None,
+                "problem": problem,
+            }
+        )
+    valid_count = sum(1 for row in rows if row["valid"])
+    problem_count = len(rows) - valid_count
+    return {
+        "mode": "validate_launch_contracts",
+        "live_execution": False,
+        "scenario_id": scenario_id,
+        "title": scenario["title"],
+        "ready_for_execution": launch_plan["ready_to_launch"] and problem_count == 0,
+        "valid_count": valid_count,
+        "problem_count": problem_count,
+        "missing_count": sum(1 for row in rows if row["problem"] == "missing"),
+        "baselines": rows,
+    }
+
+
+def recovery_execute_launch_contracts_payload(
+    scenario: dict[str, Any],
+    results_root: Path,
+    approval: str | None,
+) -> dict[str, Any]:
+    scenario_id = scenario["id"]
+    if approval != scenario_id:
+        raise BenchError(
+            "--execute-launch-contracts requires --approve-live-execution "
+            f"{scenario_id}"
+        )
+
+    result_dir = results_root / scenario_id
+    run_summary_path = result_dir / "live-run.json"
+    if run_summary_path.exists():
+        raise BenchError(
+            f"refusing to overwrite live execution summary: {run_summary_path}"
+        )
+
+    validation = recovery_validate_launch_contracts_payload(scenario, results_root)
+    if not validation["ready_for_execution"]:
+        raise BenchError(
+            "launch contracts are not ready for execution; run "
+            "--validate-launch-contracts and fix reported problems"
+        )
+
+    launch_plan = recovery_launch_plan_payload(scenario, results_root)
+    scores_path = result_dir / "scores.json"
+    scores = load_scores_for_mechanical_update(scenario, scores_path)
+    rows = []
+    mechanical_updates = 0
+    for row in launch_plan["baselines"]:
+        contract = row["launch_contract"]
+        if contract is None:
+            raise BenchError(
+                f"baseline {row['baseline_id']} has no launch contract"
+            )
+        transcript_path = resolve_contract_path(contract["transcript_path"])
+        ensure_transcript_can_be_written(transcript_path, scenario)
+        execution = execute_launch_contract(contract)
+        transcript_path.parent.mkdir(parents=True, exist_ok=True)
+        transcript_path.write_text(
+            execution_transcript(scenario, row, contract, execution),
+            encoding="utf-8",
+        )
+        mechanical_updates += update_mechanical_scores(
+            scores,
+            row["baseline_id"],
+            scenario,
+            execution,
+        )
+        rows.append(
+            {
+                "baseline_id": row["baseline_id"],
+                "baseline_name": row["baseline_name"],
+                "runner": contract["runner"],
+                "argv": contract["argv"],
+                "transcript_path": display_path(transcript_path),
+                "exit_code": execution["exit_code"],
+                "timed_out": execution["timed_out"],
+                "duration_seconds": execution["duration_seconds"],
+                "success": execution["success"],
+            }
+        )
+
+    scores_path.write_text(
+        json.dumps(scores, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    transcript_validation = recovery_validate_transcripts_payload(scenario, results_root)
+    run_summary = {
+        "schema_version": 1,
+        "mode": "execute_launch_contracts",
+        "live_execution": True,
+        "scenario_id": scenario_id,
+        "title": scenario["title"],
+        "results_root": display_path(results_root),
+        "score_path": display_path(scores_path),
+        "mechanical_scores_updated_count": mechanical_updates,
+        "transcripts_ready": transcript_validation["ready_for_scoring"],
+        "baselines": rows,
+    }
+    run_summary_path.parent.mkdir(parents=True, exist_ok=True)
+    run_summary_path.write_text(
+        json.dumps(run_summary, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    failed = [row for row in rows if not row["success"]]
+    if failed:
+        failed_ids = ", ".join(row["baseline_id"] for row in failed)
+        raise BenchError(f"live execution failed for baseline(s): {failed_ids}")
+    if not transcript_validation["ready_for_scoring"]:
+        problems = ", ".join(
+            f"{row['baseline_id']}={row['problem']}"
+            for row in transcript_validation["baselines"]
+            if not row["captured"]
+        )
+        raise BenchError(f"captured transcripts failed evidence validation: {problems}")
+
+    return {
+        "mode": "execute_launch_contracts",
+        "live_execution": True,
+        "scenario_id": scenario_id,
+        "title": scenario["title"],
+        "run_summary_path": display_path(run_summary_path),
+        "executed_count": len(rows),
+        "failed_count": len(failed),
+        "mechanical_scores_updated_count": mechanical_updates,
+        "transcripts_ready": transcript_validation["ready_for_scoring"],
+        "baselines": rows,
+        "next_action": (
+            "Operator fills nuanced score fields in scores.json, then runs "
+            "--score-results."
+        ),
+    }
+
+
+def load_scores_for_mechanical_update(
+    scenario: dict[str, Any],
+    scores_path: Path,
+) -> dict[str, Any]:
+    if not scores_path.is_file():
+        raise BenchError(
+            f"scores file does not exist: {scores_path}; run --init-results"
+        )
+    try:
+        scores = json.loads(scores_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise BenchError(f"{scores_path}: invalid JSON: {error}") from error
+    require_mapping(scores, scores_path, "root")
+    if scores.get("schema_version") != 1:
+        raise BenchError(f"{scores_path}: schema_version must be 1")
+    if scores.get("scenario_id") != scenario["id"]:
+        raise BenchError(f"{scores_path}: scenario_id must match {scenario['id']}")
+    require_mapping(scores.get("baselines"), scores_path, "baselines")
+    return scores
+
+
+def ensure_transcript_can_be_written(
+    transcript_path: Path,
+    scenario: dict[str, Any],
+) -> None:
+    captured, problem = transcript_capture_status(transcript_path, scenario)
+    if captured or problem in {"missing_prompt_evidence", "not_file"}:
+        raise BenchError(
+            f"refusing to overwrite captured transcript: {transcript_path}"
+        )
+
+
+def execute_launch_contract(contract: dict[str, Any]) -> dict[str, Any]:
+    argv = contract["argv"]
+    if not isinstance(argv, list) or not argv or any(
+        not isinstance(item, str) or not item for item in argv
+    ):
+        raise BenchError("launch contract argv must be a non-empty string array")
+    cwd = resolve_contract_path(contract["working_directory"])
+    if not cwd.is_dir():
+        raise BenchError(f"launch contract working_directory is not a directory: {cwd}")
+    cold_start_prompt = resolve_contract_path(
+        contract["cold_start_prompt_path"]
+    ).read_text(encoding="utf-8")
+    work_instruction_test = resolve_contract_path(
+        contract["work_instruction_test_path"]
+    ).read_text(encoding="utf-8")
+    stdin_text = "\n".join(
+        [
+            cold_start_prompt.rstrip("\n"),
+            "",
+            work_instruction_test.rstrip("\n"),
+            "",
+        ]
+    )
+    timeout_seconds = int(contract["cutoff_minutes"]) * 60
+    started = time.monotonic()
+    try:
+        completed = subprocess.run(
+            argv,
+            cwd=cwd,
+            input=stdin_text,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+            check=False,
+        )
+        duration = time.monotonic() - started
+        return {
+            "argv": argv,
+            "cwd": str(cwd),
+            "stdin": stdin_text,
+            "stdout": completed.stdout,
+            "stderr": completed.stderr,
+            "exit_code": completed.returncode,
+            "timed_out": False,
+            "duration_seconds": round(duration, 3),
+            "success": completed.returncode == 0,
+        }
+    except subprocess.TimeoutExpired as error:
+        duration = time.monotonic() - started
+        return {
+            "argv": argv,
+            "cwd": str(cwd),
+            "stdin": stdin_text,
+            "stdout": timeout_stream(error.stdout),
+            "stderr": timeout_stream(error.stderr),
+            "exit_code": None,
+            "timed_out": True,
+            "duration_seconds": round(duration, 3),
+            "success": False,
+        }
+    except OSError as error:
+        duration = time.monotonic() - started
+        return {
+            "argv": argv,
+            "cwd": str(cwd),
+            "stdin": stdin_text,
+            "stdout": "",
+            "stderr": f"spawn failed: {error}\n",
+            "exit_code": None,
+            "timed_out": False,
+            "duration_seconds": round(duration, 3),
+            "success": False,
+        }
+
+
+def timeout_stream(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
+
+
+def resolve_contract_path(path_value: str) -> Path:
+    path = Path(path_value).expanduser()
+    if path.is_absolute():
+        return path
+    return REPO_ROOT / path
+
+
+def execution_transcript(
+    scenario: dict[str, Any],
+    launch_row: dict[str, Any],
+    contract: dict[str, Any],
+    execution: dict[str, Any],
+) -> str:
+    return "\n".join(
+        [
+            f"# Scenario {scenario['id']} - transcript {launch_row['baseline_id']}",
+            "",
+            f"Scenario: {scenario['title']}",
+            f"Baseline: {launch_row['baseline_id']} - {launch_row['baseline_name']}",
+            f"Runner: {contract['runner']}",
+            f"Command: {' '.join(contract['argv'])}",
+            f"Working directory: {contract['working_directory']}",
+            f"Exit code: {execution['exit_code']}",
+            f"Timed out: {str(execution['timed_out']).lower()}",
+            f"Duration seconds: {execution['duration_seconds']}",
+            "",
+            "## Cold-start prompt",
+            "",
+            scenario["cold_start_prompt"],
+            "",
+            "## Work-instruction test",
+            "",
+            scenario["work_instruction_test"],
+            "",
+            "## Captured stdin",
+            "",
+            fenced_text(execution["stdin"]),
+            "",
+            "## Captured stdout",
+            "",
+            fenced_text(execution["stdout"]),
+            "",
+            "## Captured stderr",
+            "",
+            fenced_text(execution["stderr"]),
+            "",
+        ]
+    )
+
+
+def fenced_text(text: str) -> str:
+    return "```text\n" + text.rstrip("\n") + "\n```"
+
+
+def update_mechanical_scores(
+    scores: dict[str, Any],
+    baseline_id: str,
+    scenario: dict[str, Any],
+    execution: dict[str, Any],
+) -> int:
+    baselines = scores["baselines"]
+    if baseline_id not in baselines:
+        raise BenchError(f"scores.json missing baseline {baseline_id}")
+    baseline = baselines[baseline_id]
+    require_mapping(baseline, Path("scores.json"), f"baselines.{baseline_id}")
+    tokens = baseline.get("rehydration_tokens")
+    require_mapping(
+        tokens,
+        Path("scores.json"),
+        f"baselines.{baseline_id}.rehydration_tokens",
+    )
+    updates = 0
+    cutoff_seconds = int(scenario["cutoff_minutes"]) * 60
+    if baseline.get("time_to_productive_minutes") is None:
+        baseline["time_to_productive_minutes"] = (
+            "DNR"
+            if execution["timed_out"] or execution["duration_seconds"] > cutoff_seconds
+            else int(execution["duration_seconds"] // 60)
+        )
+        updates += 1
+    if tokens.get("input") is None:
+        tokens["input"] = estimate_token_count(execution["stdin"])
+        updates += 1
+    if tokens.get("output") is None:
+        tokens["output"] = estimate_token_count(
+            execution["stdout"] + "\n" + execution["stderr"]
+        )
+        updates += 1
+    return updates
+
+
+def estimate_token_count(text: str) -> int:
+    stripped = text.strip()
+    if not stripped:
+        return 0
+    return max(1, (len(stripped) + 3) // 4)
+
+
+def launch_contract_problem(
+    contract_path: Path,
+    launch_row: dict[str, Any],
+    scenario: dict[str, Any],
+) -> str | None:
+    if not launch_row["ready_for_launch"]:
+        return "environment_not_ready"
+    if not contract_path.exists():
+        return "missing"
+    if not contract_path.is_file():
+        return "not_file"
+    try:
+        contract = json.loads(contract_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return "invalid_json"
+    if contract != launch_row["launch_contract"]:
+        return "stale_or_tampered"
+    cold_start_problem = launch_contract_file_content_problem(
+        resolve_contract_path(contract["cold_start_prompt_path"]),
+        scenario["cold_start_prompt"] + "\n",
+        "cold_start_prompt",
+    )
+    if cold_start_problem is not None:
+        return cold_start_problem
+    work_instruction_problem = launch_contract_file_content_problem(
+        resolve_contract_path(contract["work_instruction_test_path"]),
+        scenario["work_instruction_test"] + "\n",
+        "work_instruction_test",
+    )
+    if work_instruction_problem is not None:
+        return work_instruction_problem
+    return None
+
+
+def launch_contract_file_content_problem(
+    path: Path,
+    expected: str,
+    label: str,
+) -> str | None:
+    if not path.exists():
+        return f"{label}_missing"
+    if not path.is_file():
+        return f"{label}_not_file"
+    if path.read_text(encoding="utf-8") != expected:
+        return f"{label}_stale_or_tampered"
+    return None
+
+
+def launch_blocked_reasons(validation_row: dict[str, Any]) -> list[str]:
+    reasons: list[str] = []
+    reasons.extend(validation_row["missing_inputs"])
+    reasons.extend(
+        f"{item['id']}: {item['problem']}"
+        for item in validation_row["invalid_inputs"]
+    )
+    reasons.extend(validation_row["missing_files"])
+    return reasons
+
+
+def launch_contract(
+    scenario: dict[str, Any],
+    baseline: dict[str, Any],
+    result_dir: Path,
+) -> dict[str, Any]:
+    baseline_id = baseline["id"]
+    env_dir = result_dir / "environments" / baseline_id
+    inputs_path = env_dir / "materialized-inputs.json"
+    preserved_inputs = []
+    if inputs_path.is_file():
+        inputs = load_materialized_inputs(inputs_path, scenario["id"], baseline_id)
+        preserved_inputs = [
+            {
+                "id": item["id"],
+                "kind": item["kind"],
+                "path": item.get("path"),
+            }
+            for item in inputs["inputs"]
+            if item.get("required")
+        ]
+    runner = "mimir_wrapped_claude" if baseline_id == "D" else "native_claude"
+    argv = ["mimir", "claude"] if baseline_id == "D" else ["claude"]
+    return {
+        "schema_version": 1,
+        "execution_mode": "manual_contract",
+        "live_execution": False,
+        "runner": runner,
+        "argv": argv,
+        "working_directory": display_path(env_dir),
+        "cold_start_prompt_path": display_path(env_dir / "cold-start-prompt.txt"),
+        "work_instruction_test_path": display_path(
+            env_dir / "work-instruction-test.txt"
+        ),
+        "transcript_path": display_path(result_dir / f"transcript-{baseline_id}.md"),
+        "cutoff_minutes": scenario["cutoff_minutes"],
+        "preserved_inputs": preserved_inputs,
+        "capture_contract": (
+            "Record the full terminal transcript into transcript_path, including "
+            "the cold-start prompt and work-instruction test."
+        ),
+    }
+
+
+def load_materialized_inputs(
+    path: Path,
+    scenario_id: str,
+    baseline_id: str,
+) -> dict[str, Any]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise BenchError(f"{path}: invalid JSON: {error}") from error
+    require_mapping(data, path, "root")
+    if data.get("schema_version") != 1:
+        raise BenchError(f"{path}: schema_version must be 1")
+    if data.get("scenario_id") != scenario_id:
+        raise BenchError(f"{path}: scenario_id must match {scenario_id}")
+    if data.get("baseline_id") != baseline_id:
+        raise BenchError(f"{path}: baseline_id must match {baseline_id}")
+    inputs = data.get("inputs")
+    if not isinstance(inputs, list):
+        raise BenchError(f"{path}: inputs must be an array")
+    for index, item in enumerate(inputs):
+        if not isinstance(item, dict):
+            raise BenchError(f"{path}: inputs[{index}] must be an object")
+        if not isinstance(item.get("id"), str) or not item["id"]:
+            raise BenchError(f"{path}: inputs[{index}].id must be a non-empty string")
+        for prior in inputs[:index]:
+            if isinstance(prior, dict) and prior.get("id") == item["id"]:
+                raise BenchError(f"{path}: inputs[{index}].id duplicates {item['id']}")
+    return data
+
+
+def materialized_input_path_problem(item: dict[str, Any]) -> str | None:
+    kind = item.get("kind")
+    if not isinstance(kind, str) or not kind:
+        return "kind must be a non-empty string"
+    path_value = item.get("path")
+    if not isinstance(path_value, str) or not path_value.strip():
+        return "path must be a non-empty string"
+    materialized_path = Path(path_value).expanduser()
+    if kind == "file":
+        return None if materialized_path.is_file() else "expected file"
+    if kind == "directory":
+        return None if materialized_path.is_dir() else "expected directory"
+    if kind == "manual":
+        return None if materialized_path.exists() else "expected existing path"
+    return f"unknown kind {kind}"
+
+
+def recovery_summary_results_payload(
+    scenarios: list[dict[str, Any]],
+    results_root: Path,
+) -> dict[str, Any]:
+    rows = []
+    for scenario in scenarios:
+        scores_path = results_root / scenario["id"] / "scores.json"
+        transcript_validation = recovery_validate_transcripts_payload(
+            scenario,
+            results_root,
+        )
+        transcript_problems = transcript_problem_rows(transcript_validation)
+        if not scores_path.is_file():
+            rows.append(
+                {
+                    "scenario_id": scenario["id"],
+                    "title": scenario["title"],
+                    "score_path": display_path(scores_path),
+                    "score_file_present": False,
+                    "score_problem": "missing",
+                    "complete": False,
+                    "missing_count": 0,
+                    "missing_fields": [],
+                    "transcripts_ready": transcript_validation["ready_for_scoring"],
+                    "transcript_problem_count": len(transcript_problems),
+                    "transcript_problems": transcript_problems,
+                    "baseline_summaries": [],
+                }
+            )
+            continue
+        try:
+            scores = json.loads(scores_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as error:
+            raise BenchError(f"{scores_path}: invalid JSON: {error}") from error
+        missing_fields, summaries = validate_scores(scenario, scores, scores_path)
+        complete = not missing_fields and not transcript_problems
+        row: dict[str, Any] = {
+            "scenario_id": scenario["id"],
+            "title": scenario["title"],
+            "score_path": display_path(scores_path),
+            "score_file_present": True,
+            "score_problem": None,
+            "complete": complete,
+            "missing_count": len(missing_fields),
+            "missing_fields": missing_fields,
+            "transcripts_ready": transcript_validation["ready_for_scoring"],
+            "transcript_problem_count": len(transcript_problems),
+            "transcript_problems": transcript_problems,
+            "baseline_summaries": summaries if complete else [],
+        }
+        if complete:
+            row["scenario_verdict"] = scenario_verdict(summaries)
+        rows.append(row)
+    complete_count = sum(1 for row in rows if row["complete"])
+    return {
+        "mode": "summary_results",
+        "live_execution": False,
+        "results_root": display_path(results_root),
+        "scenario_count": len(rows),
+        "complete_count": complete_count,
+        "incomplete_count": len(rows) - complete_count,
+        "missing_score_file_count": sum(
+            1 for row in rows if not row["score_file_present"]
+        ),
+        "benchmark_verdict": benchmark_verdict(rows),
+        "scenarios": rows,
+    }
+
+
+def benchmark_verdict(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    complete_rows = [row for row in rows if row["complete"]]
+    mimir_wins = sum(
+        1 for row in complete_rows if row["scenario_verdict"]["mimir_win"]
+    )
+    required_wins = required_mimir_wins(len(complete_rows))
+    complete = bool(rows) and len(complete_rows) == len(rows)
+    return {
+        "complete": complete,
+        "scenario_count": len(rows),
+        "complete_scenarios": len(complete_rows),
+        "incomplete_scenarios": len(rows) - len(complete_rows),
+        "mimir_wins": mimir_wins,
+        "required_wins": required_wins,
+        "benchmark_win": complete and mimir_wins >= required_wins,
+        "threshold": "Mimir wins at least two thirds of complete scenarios",
+    }
+
+
+def transcript_problem_rows(validation: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        {
+            "baseline_id": row["baseline_id"],
+            "transcript_path": row["transcript_path"],
+            "problem": row["problem"],
+        }
+        for row in validation["baselines"]
+        if not row["captured"]
+    ]
+
+
+def required_mimir_wins(complete_scenarios: int) -> int:
+    if complete_scenarios == 0:
+        return 0
+    return (2 * complete_scenarios + 2) // 3
+
+
+def scenario_verdict(summaries: list[dict[str, Any]]) -> dict[str, Any]:
+    baseline_d = baseline_summary_by_id(summaries, "D")
+    baseline_b = baseline_summary_by_id(summaries, "B")
+    non_d = [summary for summary in summaries if summary["id"] != "D"]
+    if not non_d:
+        raise BenchError("summary verdict requires at least one non-D baseline")
+
+    metric_specs = [
+        ("time_to_productive_minutes", "lower"),
+        ("fact_unprompted_correct_pct", "higher"),
+        ("hallucination_rate", "lower"),
+        ("stale_occurrences", "lower"),
+        ("rehydration_token_total", "lower"),
+    ]
+    metric_results = [
+        scenario_metric_result(baseline_d, non_d, metric, direction)
+        for metric, direction in metric_specs
+    ]
+    d_metric_wins = sum(
+        1 for result in metric_results if result["d_beats_best_non_d"]
+    )
+    guardrails = {
+        "hallucinations_not_worse_than_b": baseline_d["hallucination_count"]
+        <= baseline_b["hallucination_count"],
+        "staleness_better_than_b": baseline_d["stale_occurrences"]
+        < baseline_b["stale_occurrences"],
+    }
+    return {
+        "mimir_win": d_metric_wins >= 3 and all(guardrails.values()),
+        "d_metric_wins": d_metric_wins,
+        "required_metric_wins": 3,
+        "guardrails": guardrails,
+        "metric_results": metric_results,
+    }
+
+
+def baseline_summary_by_id(
+    summaries: list[dict[str, Any]],
+    baseline_id: str,
+) -> dict[str, Any]:
+    for summary in summaries:
+        if summary["id"] == baseline_id:
+            return summary
+    raise BenchError(f"summary verdict requires baseline {baseline_id}")
+
+
+def scenario_metric_result(
+    baseline_d: dict[str, Any],
+    non_d: list[dict[str, Any]],
+    metric: str,
+    direction: str,
+) -> dict[str, Any]:
+    lower_is_better = direction == "lower"
+    best_non_d = sorted(
+        non_d,
+        key=lambda summary: comparable_metric_value(summary[metric], lower_is_better),
+        reverse=not lower_is_better,
+    )[0]
+    d_value = comparable_metric_value(baseline_d[metric], lower_is_better)
+    best_value = comparable_metric_value(best_non_d[metric], lower_is_better)
+    d_beats = d_value < best_value if lower_is_better else d_value > best_value
+    return {
+        "metric": metric,
+        "direction": direction,
+        "d_value": baseline_d[metric],
+        "best_non_d_baseline": best_non_d["id"],
+        "best_non_d_value": best_non_d[metric],
+        "d_beats_best_non_d": d_beats,
+    }
+
+
+def comparable_metric_value(value: Any, lower_is_better: bool) -> float:
+    if value is None:
+        return float("inf") if lower_is_better else float("-inf")
+    return float(value)
+
+
+def validate_scores(
+    scenario: dict[str, Any],
+    scores: Any,
+    path: Path,
+) -> tuple[list[str], list[dict[str, Any]]]:
+    require_mapping(scores, path, "root")
+    schema_version = scores.get("schema_version")
+    if schema_version != 1:
+        raise BenchError(f"{path}: schema_version must be 1")
+    if scores.get("scenario_id") != scenario["id"]:
+        raise BenchError(f"{path}: scenario_id must match {scenario['id']}")
+    baselines = scores.get("baselines")
+    require_mapping(baselines, path, "baselines")
+    expected_ids = [baseline["id"] for baseline in scenario["baselines"]]
+    actual_ids = sorted(str(key) for key in baselines.keys())
+    if actual_ids != sorted(expected_ids):
+        raise BenchError(
+            f"{path}: baselines must contain exactly {', '.join(expected_ids)}"
+        )
+
+    missing: list[str] = []
+    complete_inputs: list[tuple[str, dict[str, Any]]] = []
+    for baseline_id in expected_ids:
+        baseline = baselines[baseline_id]
+        require_mapping(baseline, path, f"baselines.{baseline_id}")
+        normalized = collect_score_inputs(
+            scenario,
+            baseline,
+            f"baselines.{baseline_id}",
+            missing,
+        )
+        if normalized is not None:
+            complete_inputs.append((baseline_id, normalized))
+
+    if missing:
+        return missing, []
+    return [], [
+        summarize_baseline_score(scenario, baseline_id, values)
+        for baseline_id, values in complete_inputs
+    ]
+
+
+def collect_score_inputs(
+    scenario: dict[str, Any],
+    baseline: dict[str, Any],
+    prefix: str,
+    missing: list[str],
+) -> dict[str, Any] | None:
+    time_value = required_value(baseline, "time_to_productive_minutes", prefix, missing)
+    fact = required_mapping_value(baseline, "fact_correctness", prefix)
+    correct = required_value(fact, "correct", f"{prefix}.fact_correctness", missing)
+    prompted = required_value(fact, "prompted", f"{prefix}.fact_correctness", missing)
+    wrong = required_value(fact, "wrong", f"{prefix}.fact_correctness", missing)
+    silent = required_value(fact, "silent", f"{prefix}.fact_correctness", missing)
+    decisions = required_mapping_value(baseline, "decision_assertions", prefix)
+    hallucinations = required_value(
+        decisions,
+        "hallucinations",
+        f"{prefix}.decision_assertions",
+        missing,
+    )
+    decision_total = required_value(
+        decisions,
+        "total",
+        f"{prefix}.decision_assertions",
+        missing,
+    )
+    staleness = required_mapping_value(baseline, "staleness", prefix)
+    stale = required_value(
+        staleness,
+        "stale_occurrences",
+        f"{prefix}.staleness",
+        missing,
+    )
+    tokens = required_mapping_value(baseline, "rehydration_tokens", prefix)
+    input_tokens = required_value(
+        tokens,
+        "input",
+        f"{prefix}.rehydration_tokens",
+        missing,
+    )
+    output_tokens = required_value(
+        tokens,
+        "output",
+        f"{prefix}.rehydration_tokens",
+        missing,
+    )
+
+    raw_values = [
+        time_value,
+        correct,
+        prompted,
+        wrong,
+        silent,
+        hallucinations,
+        decision_total,
+        stale,
+        input_tokens,
+        output_tokens,
+    ]
+    if any(value is None for value in raw_values):
+        return None
+
+    time_minutes = parse_time_value(time_value, f"{prefix}.time_to_productive_minutes")
+    cutoff_minutes = parse_non_negative_int(
+        scenario["cutoff_minutes"],
+        "scenario.cutoff_minutes",
+    )
+    if time_minutes is not None and time_minutes > cutoff_minutes:
+        raise BenchError(
+            f"{prefix}.time_to_productive_minutes exceeds cutoff_minutes "
+            f"{cutoff_minutes}; use DNR when recovery misses the scenario cutoff"
+        )
+    correct_i = parse_non_negative_int(correct, f"{prefix}.fact_correctness.correct")
+    prompted_i = parse_non_negative_int(prompted, f"{prefix}.fact_correctness.prompted")
+    wrong_i = parse_non_negative_int(wrong, f"{prefix}.fact_correctness.wrong")
+    silent_i = parse_non_negative_int(silent, f"{prefix}.fact_correctness.silent")
+    hallucinations_i = parse_non_negative_int(
+        hallucinations,
+        f"{prefix}.decision_assertions.hallucinations",
+    )
+    decision_total_i = parse_non_negative_int(
+        decision_total,
+        f"{prefix}.decision_assertions.total",
+    )
+    if decision_total_i == 0:
+        raise BenchError(
+            f"{prefix}.decision_assertions.total must be greater than zero"
+        )
+    stale_i = parse_non_negative_int(stale, f"{prefix}.staleness.stale_occurrences")
+    staleness_test_count = len(scenario["staleness_tests"])
+    if stale_i > staleness_test_count:
+        raise BenchError(
+            f"{prefix}.staleness.stale_occurrences exceeds staleness_tests "
+            f"{staleness_test_count}"
+        )
+    input_tokens_i = parse_non_negative_int(
+        input_tokens,
+        f"{prefix}.rehydration_tokens.input",
+    )
+    output_tokens_i = parse_non_negative_int(
+        output_tokens,
+        f"{prefix}.rehydration_tokens.output",
+    )
+    fact_total = correct_i + prompted_i + wrong_i + silent_i
+    expected_total = len(scenario["ground_truth"])
+    if fact_total != expected_total:
+        raise BenchError(
+            f"{prefix}.fact_correctness totals {fact_total}, expected {expected_total}"
+        )
+    if hallucinations_i > decision_total_i:
+        raise BenchError(f"{prefix}.decision_assertions.hallucinations exceeds total")
+    return {
+        "time_minutes": time_minutes,
+        "correct": correct_i,
+        "prompted": prompted_i,
+        "wrong": wrong_i,
+        "silent": silent_i,
+        "hallucinations": hallucinations_i,
+        "decision_total": decision_total_i,
+        "stale": stale_i,
+        "input_tokens": input_tokens_i,
+        "output_tokens": output_tokens_i,
+    }
+
+
+def required_mapping_value(data: dict[str, Any], field: str, prefix: str) -> dict[str, Any]:
+    value = data.get(field)
+    if not isinstance(value, dict):
+        raise BenchError(f"{prefix}.{field} must be an object")
+    return value
+
+
+def required_value(
+    data: dict[str, Any],
+    field: str,
+    prefix: str,
+    missing: list[str],
+) -> Any:
+    value = data.get(field)
+    if value is None:
+        missing.append(f"{prefix}.{field}")
+    return value
+
+
+def require_mapping(value: Any, path: Path, label: str) -> None:
+    if not isinstance(value, dict):
+        raise BenchError(f"{path}: {label} must be an object")
+
+
+def parse_time_value(value: Any, path: str) -> int | None:
+    if value == "DNR":
+        return None
+    return parse_non_negative_int(value, path)
+
+
+def parse_non_negative_int(value: Any, path: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise BenchError(f"{path} must be a non-negative integer")
+    return value
+
+
+def summarize_baseline_score(
+    scenario: dict[str, Any],
+    baseline_id: str,
+    values: dict[str, Any],
+) -> dict[str, Any]:
+    fact_count = len(scenario["ground_truth"])
+    decision_total = values["decision_total"]
+    return {
+        "id": baseline_id,
+        "did_not_recover": values["time_minutes"] is None,
+        "time_to_productive_minutes": values["time_minutes"],
+        "fact_unprompted_correct_pct": round(values["correct"] / fact_count, 4),
+        "fact_prompted_count": values["prompted"],
+        "fact_wrong_count": values["wrong"],
+        "fact_silent_count": values["silent"],
+        "hallucination_count": values["hallucinations"],
+        "hallucination_rate": round(values["hallucinations"] / decision_total, 4)
+        if decision_total
+        else 0.0,
+        "stale_occurrences": values["stale"],
+        "rehydration_token_total": values["input_tokens"] + values["output_tokens"],
+    }
+
+
+def emit(payload: dict[str, Any], fmt: str) -> None:
+    if fmt == "json":
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return
+    if payload["mode"] == "list":
+        for scenario in payload["scenarios"]:
+            print(
+                f"{scenario['id']} status={scenario['status']} "
+                f"ground_truth={scenario['ground_truth_count']} "
+                f"staleness={scenario['staleness_test_count']} "
+                f"title={scenario['title']}"
+            )
+        return
+    if payload["mode"] == "init_results":
+        print(f"mode={payload['mode']}")
+        print(f"live_execution={str(payload['live_execution']).lower()}")
+        print(f"scenario_id={payload['scenario_id']}")
+        print(f"result_dir={payload['result_dir']}")
+        print(f"created_count={payload['created_count']}")
+        print(f"skipped_count={payload['skipped_count']}")
+        return
+    if payload["mode"] == "prepare_envs":
+        print(f"mode={payload['mode']}")
+        print(f"live_execution={str(payload['live_execution']).lower()}")
+        print(f"scenario_id={payload['scenario_id']}")
+        print(f"environment_root={payload['environment_root']}")
+        print(f"created_count={payload['created_count']}")
+        print(f"skipped_count={payload['skipped_count']}")
+        return
+    if payload["mode"] == "validate_envs":
+        print(f"mode={payload['mode']}")
+        print(f"scenario_id={payload['scenario_id']}")
+        print(f"ready_count={payload['ready_count']}")
+        print(f"blocked_count={payload['blocked_count']}")
+        return
+    if payload["mode"] == "launch_plan":
+        print(f"mode={payload['mode']}")
+        print(f"scenario_id={payload['scenario_id']}")
+        print(f"ready_to_launch={str(payload['ready_to_launch']).lower()}")
+        print(f"launchable_count={payload['launchable_count']}")
+        print(f"blocked_count={payload['blocked_count']}")
+        return
+    if payload["mode"] == "write_launch_contracts":
+        print(f"mode={payload['mode']}")
+        print(f"scenario_id={payload['scenario_id']}")
+        print(f"ready_to_launch={str(payload['ready_to_launch']).lower()}")
+        print(f"created_count={payload['created_count']}")
+        print(f"skipped_count={payload['skipped_count']}")
+        print(f"blocked_count={payload['blocked_count']}")
+        return
+    if payload["mode"] == "validate_launch_contracts":
+        print(f"mode={payload['mode']}")
+        print(f"scenario_id={payload['scenario_id']}")
+        print(f"ready_for_execution={str(payload['ready_for_execution']).lower()}")
+        print(f"valid_count={payload['valid_count']}")
+        print(f"problem_count={payload['problem_count']}")
+        print(f"missing_count={payload['missing_count']}")
+        return
+    if payload["mode"] == "execute_launch_contracts":
+        print(f"mode={payload['mode']}")
+        print(f"live_execution={str(payload['live_execution']).lower()}")
+        print(f"scenario_id={payload['scenario_id']}")
+        print(f"executed_count={payload['executed_count']}")
+        print(f"failed_count={payload['failed_count']}")
+        print(
+            "mechanical_scores_updated_count="
+            f"{payload['mechanical_scores_updated_count']}"
+        )
+        print(f"transcripts_ready={str(payload['transcripts_ready']).lower()}")
+        return
+    if payload["mode"] == "validate_transcripts":
+        print(f"mode={payload['mode']}")
+        print(f"scenario_id={payload['scenario_id']}")
+        print(f"ready_for_scoring={str(payload['ready_for_scoring']).lower()}")
+        print(f"captured_count={payload['captured_count']}")
+        print(f"placeholder_count={payload['placeholder_count']}")
+        print(f"missing_count={payload['missing_count']}")
+        return
+    if payload["mode"] == "score_results":
+        print(f"mode={payload['mode']}")
+        print(f"scenario_id={payload['scenario_id']}")
+        print(f"complete={str(payload['complete']).lower()}")
+        print(f"missing_count={payload['missing_count']}")
+        print(f"transcripts_ready={str(payload['transcripts_ready']).lower()}")
+        print(f"transcript_problem_count={payload['transcript_problem_count']}")
+        return
+    if payload["mode"] == "summary_results":
+        print(f"mode={payload['mode']}")
+        print(f"scenario_count={payload['scenario_count']}")
+        print(f"complete_count={payload['complete_count']}")
+        print(f"incomplete_count={payload['incomplete_count']}")
+        print(f"missing_score_file_count={payload['missing_score_file_count']}")
+        print(f"mimir_wins={payload['benchmark_verdict']['mimir_wins']}")
+        print(f"required_wins={payload['benchmark_verdict']['required_wins']}")
+        print(
+            f"benchmark_win="
+            f"{str(payload['benchmark_verdict']['benchmark_win']).lower()}"
+        )
+        return
+    print(f"mode={payload['mode']}")
+    print(f"live_execution={str(payload['live_execution']).lower()}")
+    print(f"scenario_id={payload['scenario_id']}")
+    print(f"title={payload['title']}")
+    print(f"cutoff_minutes={payload['cutoff_minutes']}")
+    print(f"ground_truth_count={payload['ground_truth_count']}")
+    print(f"load_bearing_decision_count={payload['load_bearing_decision_count']}")
+    print(f"staleness_test_count={payload['staleness_test_count']}")
+    print("expected_artifacts=" + ",".join(payload["expected_artifacts"]))
+
+
+def run_recovery(args: argparse.Namespace) -> int:
+    scenarios = load_scenarios(args.scenarios_dir.resolve())
+    if args.summary_results:
+        if (
+            args.list
+            or args.scenario
+            or args.init_results
+            or args.prepare_envs
+            or args.validate_envs
+            or args.launch_plan
+            or args.write_launch_contracts
+            or args.validate_launch_contracts
+            or args.execute_launch_contracts
+            or args.validate_transcripts
+            or args.score_results
+        ):
+            raise BenchError(
+                "recovery --summary-results cannot be combined with --list, "
+                "--scenario, --init-results, --prepare-envs, --validate-envs, "
+                "--launch-plan, --write-launch-contracts, "
+                "--validate-launch-contracts, --execute-launch-contracts, "
+                "--validate-transcripts, or --score-results"
+            )
+        emit(
+            recovery_summary_results_payload(scenarios, args.results_dir.resolve()),
+            args.format,
+        )
+        return 0
+    if args.list:
+        if (
+            args.scenario
+            or args.init_results
+            or args.prepare_envs
+            or args.validate_envs
+            or args.launch_plan
+            or args.write_launch_contracts
+            or args.validate_launch_contracts
+            or args.execute_launch_contracts
+            or args.validate_transcripts
+            or args.score_results
+        ):
+            raise BenchError(
+                "recovery --list cannot be combined with --scenario, "
+                "--init-results, --prepare-envs, --validate-envs, --launch-plan, "
+                "--write-launch-contracts, --validate-launch-contracts, "
+                "--execute-launch-contracts, --validate-transcripts, or "
+                "--score-results"
+            )
+        emit(recovery_list_payload(scenarios), args.format)
+        return 0
+    if not args.scenario:
+        raise BenchError(
+            "recovery requires --list, --scenario <id> --dry-run, "
+            "--scenario <id> --init-results, --scenario <id> --prepare-envs, "
+            "--scenario <id> --validate-envs, --scenario <id> --launch-plan, "
+            "--scenario <id> --write-launch-contracts, --scenario <id> "
+            "--validate-launch-contracts, --scenario <id> "
+            "--execute-launch-contracts --approve-live-execution <id>, "
+            "--scenario <id> --validate-transcripts, or --scenario <id> "
+            "--score-results"
+        )
+    scenario = find_scenario(scenarios, args.scenario)
+    results_root = args.results_dir.resolve()
+    action_count = sum(
+        1
+        for flag in (
+            args.init_results,
+            args.prepare_envs,
+            args.validate_envs,
+            args.launch_plan,
+            args.write_launch_contracts,
+            args.validate_launch_contracts,
+            args.execute_launch_contracts,
+            args.validate_transcripts,
+            args.score_results,
+        )
+        if flag
+    )
+    if action_count > 1:
+        raise BenchError(
+            "--init-results, --prepare-envs, --validate-envs, --launch-plan, "
+            "--write-launch-contracts, --validate-launch-contracts, "
+            "--execute-launch-contracts, --validate-transcripts, and "
+            "--score-results are mutually exclusive"
+        )
+    if args.execute_launch_contracts:
+        emit(
+            recovery_execute_launch_contracts_payload(
+                scenario,
+                results_root,
+                args.approve_live_execution,
+            ),
+            args.format,
+        )
+        return 0
+    if args.score_results:
+        emit(recovery_score_results_payload(scenario, results_root), args.format)
+        return 0
+    if args.validate_envs:
+        emit(recovery_validate_envs_payload(scenario, results_root), args.format)
+        return 0
+    if args.launch_plan:
+        emit(recovery_launch_plan_payload(scenario, results_root), args.format)
+        return 0
+    if args.write_launch_contracts:
+        emit(
+            recovery_write_launch_contracts_payload(scenario, results_root),
+            args.format,
+        )
+        return 0
+    if args.validate_launch_contracts:
+        emit(
+            recovery_validate_launch_contracts_payload(scenario, results_root),
+            args.format,
+        )
+        return 0
+    if args.validate_transcripts:
+        emit(recovery_validate_transcripts_payload(scenario, results_root), args.format)
+        return 0
+    if args.prepare_envs:
+        emit(recovery_prepare_envs_payload(scenario, results_root), args.format)
+        return 0
+    if args.init_results:
+        emit(recovery_init_results_payload(scenario, results_root), args.format)
+        return 0
+    if not args.dry_run:
+        raise BenchError(
+            "pass --dry-run or choose a concrete action such as "
+            "--execute-launch-contracts with --approve-live-execution <scenario-id>"
+        )
+    emit(recovery_dry_run_payload(scenario, results_root), args.format)
+    return 0
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__)
+    subcommands = parser.add_subparsers(dest="command", required=True)
+    recovery = subcommands.add_parser("recovery", help="Plan recovery benchmark runs")
+    recovery.add_argument("--list", action="store_true", help="List structured scenarios")
+    recovery.add_argument("--scenario", help="Scenario id to plan")
+    recovery.add_argument("--dry-run", action="store_true", help="Render the plan only")
+    recovery.add_argument(
+        "--init-results",
+        action="store_true",
+        help="Create scorecard, transcript, notes, and run-plan skeletons",
+    )
+    recovery.add_argument(
+        "--prepare-envs",
+        action="store_true",
+        help="Create per-baseline recovery environment scaffolds",
+    )
+    recovery.add_argument(
+        "--validate-envs",
+        action="store_true",
+        help="Validate prepared baseline environment population inputs",
+    )
+    recovery.add_argument(
+        "--launch-plan",
+        action="store_true",
+        help="Render non-executing per-baseline launch contracts",
+    )
+    recovery.add_argument(
+        "--write-launch-contracts",
+        action="store_true",
+        help="Write non-executing launch contracts for fully ready baselines",
+    )
+    recovery.add_argument(
+        "--validate-launch-contracts",
+        action="store_true",
+        help="Validate materialized launch contracts before execution",
+    )
+    recovery.add_argument(
+        "--execute-launch-contracts",
+        action="store_true",
+        help="Execute validated launch contracts and capture transcripts",
+    )
+    recovery.add_argument(
+        "--approve-live-execution",
+        help="Required approval token for --execute-launch-contracts; use scenario id",
+    )
+    recovery.add_argument(
+        "--validate-transcripts",
+        action="store_true",
+        help="Validate captured baseline transcript files before scoring",
+    )
+    recovery.add_argument(
+        "--score-results",
+        action="store_true",
+        help="Validate and summarize a scenario scores.json file",
+    )
+    recovery.add_argument(
+        "--summary-results",
+        action="store_true",
+        help="Summarize all scenario scores.json files under --results-dir",
+    )
+    recovery.add_argument(
+        "--format",
+        choices=("text", "json"),
+        default="text",
+        help="Output format",
+    )
+    recovery.add_argument(
+        "--scenarios-dir",
+        type=Path,
+        default=DEFAULT_SCENARIOS_DIR,
+        help="Directory containing scenario JSON files",
+    )
+    recovery.add_argument(
+        "--results-dir",
+        type=Path,
+        default=RESULTS_ROOT,
+        help="Directory where recovery result skeletons are written",
+    )
+    return parser
+
+
+def main(argv: list[str]) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    try:
+        if args.command == "recovery":
+            return run_recovery(args)
+    except BenchError as error:
+        print(f"bench: {error}", file=sys.stderr)
+        return 2
+    parser.error(f"unknown command {args.command}")
+    return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

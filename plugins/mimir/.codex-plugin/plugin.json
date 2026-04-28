@@ -1,0 +1,40 @@
+{
+  "name": "mimir",
+  "version": "0.1.0",
+  "description": "Codex workflow support for Mimir's local-first, librarian-governed agent memory.",
+  "author": {
+    "name": "BES Studios",
+    "email": "alaindormehl@gmail.com",
+    "url": "https://github.com/buildepicshit"
+  },
+  "homepage": "https://github.com/buildepicshit/Mimir",
+  "repository": "https://github.com/buildepicshit/Mimir",
+  "license": "Apache-2.0",
+  "keywords": [
+    "agent-memory",
+    "codex",
+    "local-first",
+    "memory-governance"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Mimir",
+    "shortDescription": "Submit governed memory drafts from Codex without bypassing the librarian.",
+    "longDescription": "Mimir is a local-first memory governance layer for agent sessions. This Codex plugin teaches the full workflow: check project readiness, verify explicit native setup, submit durable checkpoint drafts, inspect governed context, and preserve the librarian as the only canonical writer.",
+    "developerName": "BES Studios",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Local"
+    ],
+    "websiteURL": "https://github.com/buildepicshit/Mimir",
+    "privacyPolicyURL": "https://github.com/buildepicshit/Mimir/blob/main/SECURITY.md",
+    "termsOfServiceURL": "https://github.com/buildepicshit/Mimir/blob/main/LICENSE",
+    "defaultPrompt": [
+      "Run Mimir doctor for this repo.",
+      "Checkpoint the durable decisions from this session.",
+      "Show me current governed Mimir context."
+    ],
+    "brandColor": "#2563EB"
+  }
+}

@@ -1,0 +1,1 @@
+(inf @alice @likes @coffee (@mem1 @mem2) @majority_vote :c 0.7 :v 2024-01-20)

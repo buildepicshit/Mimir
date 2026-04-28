@@ -1,0 +1,35 @@
+[package]
+name = "mimir-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Mimir — read-only inspection CLI for canonical stores."
+readme = "README.md"
+homepage = "https://github.com/buildepicshit/Mimir"
+documentation = "https://docs.rs/mimir-cli"
+keywords = ["agent", "memory", "claude", "cli", "decoder"]
+categories = ["command-line-utilities", "development-tools::debugging"]
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "mimir-cli"
+path = "src/main.rs"
+
+[lib]
+name = "mimir_cli"
+path = "src/lib.rs"
+
+[dependencies]
+mimir-core = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

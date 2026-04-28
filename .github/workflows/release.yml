@@ -1,0 +1,338 @@
+name: Release
+
+# Two trigger modes:
+#   1. push of a `v*` tag         -> full release flow, real publish if tag is non-prerelease
+#   2. workflow_dispatch          -> dry-run by default; flip `real_publish` to actually publish
+#
+# Phase 1.5 of `docs/planning/2026-04-19-roadmap-to-prime-time.md`.
+# This workflow is end-to-end runnable today (dry-run). Tag pushes must build
+# binaries and draft the GitHub Release before crates are published; manual
+# dispatch still exercises the artifact gate without creating a release.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag_override:
+        description: "Tag to simulate (e.g. v0.1.0-alpha.1). Defaults to workspace version."
+        required: false
+        type: string
+      real_publish:
+        description: "Actually publish to crates.io. LEAVE FALSE for dry runs."
+        required: true
+        type: boolean
+        default: false
+
+permissions: read-all
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  # 1. Verify the tag (or override) matches `Cargo.toml [workspace.package].version`.
+  #    Catches the classic "tagged v0.2.0 but Cargo.toml still says 0.1.0" footgun.
+  verify-version:
+    name: verify tag matches workspace version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      tag: ${{ steps.resolve.outputs.tag }}
+      is_prerelease: ${{ steps.resolve.outputs.is_prerelease }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: resolve tag and version
+        id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Workspace version is the source of truth (read once, used twice).
+          workspace_version=$(grep -E '^version *= *' Cargo.toml | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/')
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            tag="${GITHUB_REF#refs/tags/}"
+          elif [[ -n "${{ inputs.tag_override }}" ]]; then
+            tag="${{ inputs.tag_override }}"
+          else
+            tag="v${workspace_version}"
+          fi
+          version="${tag#v}"
+          if [[ "$version" != "$workspace_version" ]]; then
+            echo "::error::tag $tag (version $version) does not match Cargo.toml [workspace.package].version $workspace_version"
+            exit 1
+          fi
+          if [[ "$version" == *"-"* ]]; then
+            is_prerelease=true
+          else
+            is_prerelease=false
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "is_prerelease=$is_prerelease" >> "$GITHUB_OUTPUT"
+          echo "Resolved tag=$tag version=$version is_prerelease=$is_prerelease"
+
+  # 2. `cargo publish --dry-run` the root crate before anything irreversible.
+  #    Dependent crates are dry-run immediately before their real publish,
+  #    after the previous dependency has propagated through the crates.io index.
+  dry-run-publish:
+    name: cargo publish --dry-run (mimir-core)
+    needs: verify-version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: install toolchain
+        run: rustup show
+      - name: cache
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+      - name: dry-run publish mimir-core
+        run: cargo publish --dry-run -p mimir-core --allow-dirty
+
+  # 3. Smoke install the CLIs and verify --version. Asserts we can actually go
+  #    `cargo install` after publish without a runtime crash.
+  smoke-install:
+    name: cargo install + --version smoke
+    needs: verify-version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: install toolchain
+        run: rustup show
+      - name: cache
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+      - name: cargo install --path crates/mimir-cli
+        run: cargo install --path crates/mimir-cli --locked --force
+      - name: cargo install --path crates/mimir-harness
+        run: cargo install --path crates/mimir-harness --locked --force
+      - name: smoke mimir-cli
+        shell: bash
+        run: |
+          set -euo pipefail
+          ver=$(mimir-cli --version)
+          echo "mimir-cli reported: $ver"
+          echo "$ver" | grep -qE "${{ needs.verify-version.outputs.version }}"
+      - name: smoke mimir
+        shell: bash
+        run: |
+          set -euo pipefail
+          ver=$(mimir --version)
+          echo "mimir reported: $ver"
+          echo "$ver" | grep -qE "${{ needs.verify-version.outputs.version }}"
+
+  # 4. Cross-OS binary build. Replaces a future `cargo-dist` setup; intentionally
+  #    hand-rolled while we're pre-1.0 to keep the release surface inspectable.
+  #    Targets cover what `deny.toml` already declares: Linux x86_64 + ARM64,
+  #    macOS x86_64 + ARM64, Windows x86_64.
+  build-binaries:
+    name: build Mimir CLIs (${{ matrix.target }})
+    needs: verify-version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            archive: tar.gz
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            archive: tar.gz
+            cross: true
+          - target: x86_64-apple-darwin
+            os: macos-13
+            archive: tar.gz
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            archive: tar.gz
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            archive: zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: install toolchain
+        shell: bash
+        run: |
+          rustup show
+          rustup target add ${{ matrix.target }}
+      - name: cache
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          key: ${{ matrix.target }}
+      - name: install cross-linker (aarch64-linux only)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          mkdir -p ~/.cargo
+          cat >> ~/.cargo/config.toml <<EOF
+          [target.aarch64-unknown-linux-gnu]
+          linker = "aarch64-linux-gnu-gcc"
+          EOF
+      - name: build
+        shell: bash
+        run: cargo build --release --locked -p mimir-cli -p mimir-harness --target ${{ matrix.target }}
+      - name: package (unix)
+        if: matrix.archive == 'tar.gz'
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="mimir-tools-${{ needs.verify-version.outputs.version }}-${{ matrix.target }}"
+          mkdir -p "dist/$name"
+          cp "target/${{ matrix.target }}/release/mimir-cli" "dist/$name/"
+          cp "target/${{ matrix.target }}/release/mimir" "dist/$name/"
+          cp LICENSE README.md "dist/$name/" || true
+          cp CHANGELOG.md "dist/$name/" || true
+          tar -czf "dist/$name.tar.gz" -C dist "$name"
+          (cd dist && shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256")
+      - name: package (windows)
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: |
+          $name = "mimir-tools-${{ needs.verify-version.outputs.version }}-${{ matrix.target }}"
+          New-Item -ItemType Directory -Force -Path "dist/$name" | Out-Null
+          Copy-Item "target/${{ matrix.target }}/release/mimir-cli.exe" "dist/$name/"
+          Copy-Item "target/${{ matrix.target }}/release/mimir.exe" "dist/$name/"
+          Copy-Item "LICENSE","README.md","CHANGELOG.md" "dist/$name/" -ErrorAction SilentlyContinue
+          Compress-Archive -Path "dist/$name" -DestinationPath "dist/$name.zip" -Force
+          $hash = (Get-FileHash "dist/$name.zip" -Algorithm SHA256).Hash.ToLower()
+          "$hash  $name.zip" | Out-File -Encoding ascii "dist/$name.zip.sha256"
+      - name: upload artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mimir-tools-${{ matrix.target }}
+          path: |
+            dist/*.tar.gz
+            dist/*.tar.gz.sha256
+            dist/*.zip
+            dist/*.zip.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  # 5. Draft GitHub Release. Tag pushes create the release; workflow_dispatch
+  #    keeps the same binary-artifact gate but performs no release mutation.
+  #    Body is the matching `## [x.y.z]` section from CHANGELOG.md, extracted
+  #    by a small awk script so we don't add another action dependency.
+  github-release:
+    name: draft GitHub Release
+    needs: [verify-version, dry-run-publish, smoke-install, build-binaries]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: download all artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: dist
+          merge-multiple: true
+      - name: extract changelog section
+        id: changelog
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ needs.verify-version.outputs.version }}"
+          # Pull the [x.y.z] section, stop at the next ## heading.
+          awk -v ver="$version" '
+            $0 ~ "^## \\[" ver "\\]" { in_section=1; next }
+            in_section && /^## \[/ { exit }
+            in_section { print }
+          ' CHANGELOG.md > /tmp/release-notes.md
+          if [[ ! -s /tmp/release-notes.md ]]; then
+            echo "::warning::no CHANGELOG.md section for [$version]; release body will be empty"
+            echo "Released $version. See [CHANGELOG.md](./CHANGELOG.md)." > /tmp/release-notes.md
+          fi
+          echo "Release body preview:"
+          head -50 /tmp/release-notes.md
+      - name: create release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ needs.verify-version.outputs.tag }}"
+          flags=("--draft")
+          if [[ "${{ needs.verify-version.outputs.is_prerelease }}" == "true" ]]; then
+            flags+=("--prerelease")
+          fi
+          gh release create "$tag" \
+            "${flags[@]}" \
+            --title "$tag" \
+            --notes-file /tmp/release-notes.md \
+            dist/*.tar.gz dist/*.tar.gz.sha256 dist/*.zip dist/*.zip.sha256
+      - name: workflow_dispatch release gate
+        if: github.event_name != 'push'
+        run: echo "workflow_dispatch built and verified release artifacts; no GitHub Release is created."
+
+  # 6. Crates.io publish. Real-publish gate has THREE conditions, all of which
+  #    must hold:
+  #      a) Triggered by a real tag push (not workflow_dispatch); OR
+  #         workflow_dispatch with `real_publish == true`.
+  #      b) `secrets.CRATES_IO_TOKEN` is configured.
+  #      c) `dry-run-publish`, `smoke-install`, `build-binaries`, and
+  #         `github-release` are all green.
+  #    First real run = Phase 4's v0.1.0-alpha.1 cut.
+  crates-publish:
+    name: cargo publish (real)
+    needs: [verify-version, dry-run-publish, smoke-install, build-binaries, github-release]
+    if: |
+      (github.event_name == 'push') ||
+      (github.event_name == 'workflow_dispatch' && inputs.real_publish == true)
+    runs-on: ubuntu-latest
+    environment: crates-io
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: install toolchain
+        run: rustup show
+      - name: cache
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+      - name: confirm token present
+        env:
+          CRATES_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+        shell: bash
+        run: |
+          if [[ -z "${CRATES_IO_TOKEN:-}" ]]; then
+            echo "::error::CRATES_IO_TOKEN is not configured. Configure under repo secrets, then re-run."
+            exit 1
+          fi
+      - name: publish mimir-core
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+        run: cargo publish -p mimir-core
+      - name: wait for crates.io index propagation
+        run: sleep 30
+      - name: dry-run publish mimir-cli
+        run: cargo publish --dry-run -p mimir-cli --allow-dirty
+      - name: publish mimir-cli
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+        run: cargo publish -p mimir-cli
+      - name: wait for crates.io index propagation
+        run: sleep 30
+      - name: dry-run publish mimir-mcp
+        run: cargo publish --dry-run -p mimir-mcp --allow-dirty
+      - name: publish mimir-mcp
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+        run: cargo publish -p mimir-mcp
+      - name: wait for crates.io index propagation
+        run: sleep 30
+      - name: dry-run publish mimir-librarian
+        run: cargo publish --dry-run -p mimir-librarian --allow-dirty
+      - name: publish mimir-librarian
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+        run: cargo publish -p mimir-librarian
+      - name: wait for crates.io index propagation
+        run: sleep 30
+      - name: dry-run publish mimir-harness
+        run: cargo publish --dry-run -p mimir-harness --allow-dirty
+      - name: publish mimir-harness
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+        run: cargo publish -p mimir-harness

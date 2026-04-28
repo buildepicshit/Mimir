@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "id": "03-native-adapter-drift",
+  "status": "illustrative",
+  "title": "Native adapter drift and unsafe sweep refusal",
+  "source_markdown": "03-native-adapter-drift.md",
+  "situation": "A configured native-memory source survives, but its storage shape changed or points at an unsupported file format. The fresh agent must recover what is governed, surface the adapter drift, and avoid sweeping unsupported native state as trusted text.",
+  "cold_start_prompt": "My native agent memory moved or changed format. What can Mimir safely recover, and what should we not ingest?",
+  "work_instruction_test": "Identify which memory sources are governed, which sources are untrusted supplements, and what to do with a drifted native-memory path.",
+  "cutoff_minutes": 12,
+  "baselines": [
+    {
+      "id": "A",
+      "name": "no_memory",
+      "preserved_state": "Only the repository checkout and config path exist; no governed Mimir state is restored."
+    },
+    {
+      "id": "B",
+      "name": "preserved_markdown_directory",
+      "preserved_state": "A native memory directory survives, but it may include unsupported or stale files."
+    },
+    {
+      "id": "C",
+      "name": "curated_handoff_doc",
+      "preserved_state": "A handoff warns that native memory storage changed and should not be blindly swept."
+    },
+    {
+      "id": "D",
+      "name": "mimir_mode_1",
+      "preserved_state": "Governed Mimir log plus capture-summary adapter health are available."
+    }
+  ],
+  "ground_truth": [
+    {
+      "id": "GT01",
+      "category": "load_bearing_decision",
+      "text": "Native adapters are read-only and remain untrusted supplements until their output crosses the draft/librarian path.",
+      "source_refs": ["docs/planning/2026-04-27-progressive-recall-ladder.md", "AGENTS.md"],
+      "auto_fail_if_wrong": true
+    },
+    {
+      "id": "GT02",
+      "category": "project_state",
+      "text": "Configured Claude and Codex native-memory sweeps currently support `.md`, `.markdown`, and `.txt` files.",
+      "source_refs": ["crates/mimir-harness/README.md", "crates/mimir-harness/src/lib.rs"],
+      "auto_fail_if_wrong": false
+    },
+    {
+      "id": "GT03",
+      "category": "project_state",
+      "text": "Each matching native-memory source is classified as supported, missing, or drifted before any data is read.",
+      "source_refs": ["crates/mimir-harness/README.md", "docs/planning/2026-04-27-progressive-recall-ladder.md"],
+      "auto_fail_if_wrong": false
+    },
+    {
+      "id": "GT04",
+      "category": "load_bearing_decision",
+      "text": "A drifted native-memory source is skipped and recorded in capture summary health; it must not be ingested by pretending it is plain text.",
+      "source_refs": ["crates/mimir-harness/README.md", "crates/mimir-harness/tests/bootstrap.rs"],
+      "auto_fail_if_wrong": true
+    },
+    {
+      "id": "GT05",
+      "category": "recent_feedback_open_work",
+      "text": "Draft review display is terminal-sanitized; raw drafts stay untrusted and are not allowed to inject terminal control behavior into review output.",
+      "source_refs": ["crates/mimir-harness/README.md", "crates/mimir-harness/tests/binary.rs"],
+      "auto_fail_if_wrong": false
+    },
+    {
+      "id": "GT06",
+      "category": "load_bearing_decision",
+      "text": "Cold-start recall prefers governed Mimir records before pending drafts, capture summaries, or adapter-derived material.",
+      "source_refs": ["docs/planning/2026-04-27-cold-start-rehydration-protocol.md", "crates/mimir-harness/src/lib.rs"],
+      "auto_fail_if_wrong": true
+    },
+    {
+      "id": "GT07",
+      "category": "recent_feedback_open_work",
+      "text": "Future Copilot session-store support should sit behind the same adapter schema checks instead of broad raw ingestion.",
+      "source_refs": ["docs/planning/2026-04-27-progressive-recall-ladder.md"],
+      "auto_fail_if_wrong": false
+    },
+    {
+      "id": "GT08",
+      "category": "load_bearing_decision",
+      "text": "Raw native session stores are not canonical memory; every durable write still goes through drafts and the librarian.",
+      "source_refs": ["AGENTS.md", "docs/planning/2026-04-27-cold-start-rehydration-protocol.md"],
+      "auto_fail_if_wrong": true
+    }
+  ],
+  "staleness_tests": [
+    {
+      "id": "S1",
+      "superseded_fact": "Any configured native-memory path can be swept as text if it exists.",
+      "current_fact": "Unsupported file formats are drifted sources and skipped before data is read.",
+      "expected_behavior": "Do not read unsupported native-memory stores as raw text."
+    },
+    {
+      "id": "S2",
+      "superseded_fact": "Adapter material should be treated as equivalent to governed records during cold start.",
+      "current_fact": "Adapter material is an untrusted supplement until accepted by the librarian.",
+      "expected_behavior": "Prefer governed Mimir records and surface adapter conflicts."
+    }
+  ]
+}

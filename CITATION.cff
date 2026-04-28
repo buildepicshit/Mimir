@@ -1,0 +1,33 @@
+cff-version: 1.2.0
+title: Mimir
+message: >-
+  If you reference Mimir in academic or technical work, please cite it using
+  the metadata below.
+type: software
+authors:
+  - given-names: Alain
+    family-names: Dormehl
+    email: alaindormehl@gmail.com
+    affiliation: Build Epic Shit Studios
+repository-code: 'https://github.com/buildepicshit/Mimir'
+url: 'https://github.com/buildepicshit/Mimir'
+abstract: >-
+  An experimental multi-agent memory governance/control plane. Canonical
+  storage uses an agent-native bytecode-like intermediate representation;
+  librarian-mediated single-writer writes with compiler-style validation;
+  bi-temporal append-only storage with stable symbol tracking;
+  grounding-aware deterministic confidence decay; checkpoint-triggered
+  episode atomicity; DAG supersession; scoped promotion with provenance; and
+  consensus-quorum evidence drafts that preserve dissent instead of treating
+  model agreement as truth.
+keywords:
+  - agent-memory
+  - multi-agent-systems
+  - memory-governance
+  - scoped-memory
+  - consensus-quorum
+  - compiler-architecture
+  - bi-temporal-store
+  - symbol-tracking
+  - llm-tooling
+license: Apache-2.0

@@ -1,0 +1,15 @@
+[toolchain]
+# MSRV bump history (each entry was forced by a transitive dep):
+#   - 1.85.0 → 1.88.0 in Phase 2.1: rmcp-macros → darling 0.23 needs 1.88
+#                                   (also unblocks cargo-audit + criterion 0.6+).
+#   - 1.88.0 → 1.89.0 in 2026-04-20 pre-cutover cleanup: cargo-audit's
+#                                   smol_str@0.3.6 transitive needs 1.89.
+#
+# Mimir is pre-1.0 alpha with no external users; tracking the
+# ecosystem MSRV rather than pinning has zero cost beyond a `rustup
+# install` on first build for future contributors. Re-evaluate the
+# "track ecosystem" stance when the first crates.io publish + first
+# external user lands (Phase 4-5 of the prime-time roadmap).
+channel = "1.89.0"
+components = ["rustfmt", "clippy"]
+profile = "minimal"

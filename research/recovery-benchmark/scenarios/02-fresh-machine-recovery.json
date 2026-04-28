@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "id": "02-fresh-machine-recovery",
+  "status": "illustrative",
+  "title": "Fresh machine recovery from remote mirror",
+  "source_markdown": "02-fresh-machine-recovery.md",
+  "situation": "The operator moves to a new machine or loses the local Mimir state directory. The repository checkout exists, but local agent memory, session directories, and the prior canonical log are absent unless recovered from the configured remote mirror.",
+  "cold_start_prompt": "I moved to a new machine. Restore Mimir memory for this repo and tell me what is safe to do next.",
+  "work_instruction_test": "Explain the exact recovery commands and identify why pull remains explicit while auto-push may run after capture.",
+  "cutoff_minutes": 15,
+  "baselines": [
+    {
+      "id": "A",
+      "name": "no_memory",
+      "preserved_state": "Only the repository checkout exists on the new machine."
+    },
+    {
+      "id": "B",
+      "name": "preserved_markdown_directory",
+      "preserved_state": "A copied Claude or Codex memory directory exists, but no Mimir canonical log or remote checkout is restored."
+    },
+    {
+      "id": "C",
+      "name": "curated_handoff_doc",
+      "preserved_state": "An operator-written recovery handoff explains the intended remote mirror and last known status."
+    },
+    {
+      "id": "D",
+      "name": "mimir_mode_1",
+      "preserved_state": "The Mimir config points at a Git remote mirror containing governed logs and draft files."
+    }
+  ],
+  "ground_truth": [
+    {
+      "id": "GT01",
+      "category": "project_state",
+      "text": "The transparent harness entry point is `mimir <agent> [agent args...]`; recovery should preserve the native agent UI while adding Mimir setup, rehydration, and capture.",
+      "source_refs": ["AGENTS.md", "docs/planning/2026-04-24-transparent-agent-harness.md"],
+      "auto_fail_if_wrong": false
+    },
+    {
+      "id": "GT02",
+      "category": "project_state",
+      "text": "Remote recovery metadata lives under `[remote]` with kind, url, branch, and `auto_push_after_capture` fields.",
+      "source_refs": ["crates/mimir-harness/README.md", "docs/first-run.md"],
+      "auto_fail_if_wrong": false
+    },
+    {
+      "id": "GT03",
+      "category": "load_bearing_decision",
+      "text": "Remote pull is always explicit; auto-push is allowed only after capture and librarian handoff when the operator opts in.",
+      "source_refs": ["crates/mimir-harness/README.md", "docs/planning/2026-04-24-transparent-agent-harness.md"],
+      "auto_fail_if_wrong": true
+    },
+    {
+      "id": "GT04",
+      "category": "load_bearing_decision",
+      "text": "Remote sync must respect append-only canonical logs; divergent logs require preserving both sides and librarian review instead of overwrite.",
+      "source_refs": ["AGENTS.md", "crates/mimir-harness/README.md"],
+      "auto_fail_if_wrong": true
+    },
+    {
+      "id": "GT05",
+      "category": "project_state",
+      "text": "`mimir remote status --refresh` classifies local versus remote state as missing, local_only, remote_only, synced, local_ahead, remote_ahead, or diverged and prints next-action remediation.",
+      "source_refs": ["crates/mimir-harness/README.md"],
+      "auto_fail_if_wrong": false
+    },
+    {
+      "id": "GT06",
+      "category": "load_bearing_decision",
+      "text": "Restore drills are explicit and destructive only after opt-in; dry-run planning precedes deleting local state, pulling, verifying, and sanity-querying the restored log.",
+      "source_refs": ["crates/mimir-harness/README.md", "docs/planning/2026-04-24-transparent-agent-harness.md"],
+      "auto_fail_if_wrong": true
+    },
+    {
+      "id": "GT07",
+      "category": "recent_feedback_open_work",
+      "text": "Service remotes currently expose only a dry-run adapter contract; real service push and pull are not implemented.",
+      "source_refs": ["crates/mimir-harness/README.md", "docs/planning/2026-04-24-transparent-agent-harness.md"],
+      "auto_fail_if_wrong": false
+    },
+    {
+      "id": "GT08",
+      "category": "operator_profile",
+      "text": "Because CI minutes are limited, recovery changes should be batched and fully verified locally before any push.",
+      "source_refs": ["AGENTS.md"],
+      "auto_fail_if_wrong": false
+    }
+  ],
+  "staleness_tests": [
+    {
+      "id": "S1",
+      "superseded_fact": "A configured service remote can already push and pull memory state.",
+      "current_fact": "Service remotes are an unsupported adapter boundary with dry-run contract output only.",
+      "expected_behavior": "Report service remotes as planned or unsupported, not as production sync."
+    },
+    {
+      "id": "S2",
+      "superseded_fact": "Recovery pull may overwrite local canonical state to match the remote.",
+      "current_fact": "Append-only local and remote logs are compared; divergence requires manual preservation and librarian review.",
+      "expected_behavior": "Do not recommend overwrite or reset as a recovery step."
+    }
+  ]
+}

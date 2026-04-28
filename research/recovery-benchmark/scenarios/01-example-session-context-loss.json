@@ -1,0 +1,195 @@
+{
+  "schema_version": 1,
+  "id": "01-example-session-context-loss",
+  "status": "illustrative",
+  "title": "2026-04-20 session context loss",
+  "source_markdown": "01-example-session-context-loss.md",
+  "situation": "On 2026-04-20 the operator and Claude Code produced a mission scope reframe, a delivery plan, a seven-PR merge wave, and first scouting for benchmark tracks A and B. The fresh-agent recovery scenario starts after local Claude Code state is wiped, corrupted, or lost through compaction.",
+  "cold_start_prompt": "I'm back. What were we working on, and what's the next step?",
+  "work_instruction_test": "Identify the next concrete unblock for the recovery benchmark work, and state why a real pilot must not run yet.",
+  "cutoff_minutes": 10,
+  "baselines": [
+    {
+      "id": "A",
+      "name": "no_memory",
+      "preserved_state": "Nothing except the repository checkout and the cold-start prompt."
+    },
+    {
+      "id": "B",
+      "name": "preserved_markdown_directory",
+      "preserved_state": "The operator's Claude auto-memory markdown directory survives."
+    },
+    {
+      "id": "C",
+      "name": "curated_handoff_doc",
+      "preserved_state": "An operator-written STATUS-style handoff document for the scenario."
+    },
+    {
+      "id": "D",
+      "name": "mimir_mode_1",
+      "preserved_state": "Canonical Mimir log and Mimir access, with no other preserved local agent state."
+    }
+  ],
+  "ground_truth": [
+    {
+      "id": "GT01",
+      "category": "operator_profile",
+      "text": "Operator is Alain Dormehl, owner of Mimir and BES Studios.",
+      "source_refs": ["AGENTS.md"],
+      "auto_fail_if_wrong": false
+    },
+    {
+      "id": "GT02",
+      "category": "operator_profile",
+      "text": "Engagement protocol is Propose, Wait, Execute, Report, Stop.",
+      "source_refs": ["AGENTS.md"],
+      "auto_fail_if_wrong": false
+    },
+    {
+      "id": "GT03",
+      "category": "operator_profile",
+      "text": "CI quota is a hard rule: verify locally before every push because GitHub Actions minutes are limited.",
+      "source_refs": ["AGENTS.md"],
+      "auto_fail_if_wrong": false
+    },
+    {
+      "id": "GT04",
+      "category": "operator_profile",
+      "text": "Mimir stays private until the operator is happy it delivers on its promises; phase ordering is not a public deadline.",
+      "source_refs": ["docs/planning/2026-04-19-roadmap-to-prime-time.md"],
+      "auto_fail_if_wrong": false
+    },
+    {
+      "id": "GT05",
+      "category": "operator_profile",
+      "text": "Fedora 43 tooling had a known ld.bfd issue on large Rust workspaces, with mold used as the practical linker path.",
+      "source_refs": ["research/recovery-benchmark/scenarios/01-example-session-context-loss.md"],
+      "auto_fail_if_wrong": false
+    },
+    {
+      "id": "GT06",
+      "category": "project_state",
+      "text": "Main was at commit 6e6bcd6 after the 2026-04-20 merge wave.",
+      "source_refs": ["git log", "research/recovery-benchmark/scenarios/01-example-session-context-loss.md"],
+      "auto_fail_if_wrong": false
+    },
+    {
+      "id": "GT07",
+      "category": "project_state",
+      "text": "The workspace had 463 tests passing at that point in the historical scenario.",
+      "source_refs": ["STATUS.md", "research/recovery-benchmark/scenarios/01-example-session-context-loss.md"],
+      "auto_fail_if_wrong": false
+    },
+    {
+      "id": "GT08",
+      "category": "project_state",
+      "text": "GitHub Actions quota was exhausted as of 2026-04-20; recent CI failures in about two seconds with empty steps arrays were the quota fingerprint, not a workflow config bug.",
+      "source_refs": ["AGENTS.md", "research/recovery-benchmark/scenarios/01-example-session-context-loss.md"],
+      "auto_fail_if_wrong": false
+    },
+    {
+      "id": "GT09",
+      "category": "project_state",
+      "text": "Three planning docs were on main: roadmap to prime time, mission scope and recovery benchmark, and delivery plan.",
+      "source_refs": ["docs/planning/2026-04-19-roadmap-to-prime-time.md", "docs/planning/2026-04-20-mission-scope-and-recovery-benchmark.md", "docs/planning/2026-04-20-delivery-plan.md"],
+      "auto_fail_if_wrong": false
+    },
+    {
+      "id": "GT10",
+      "category": "project_state",
+      "text": "The delivery plan had four pre-flip deliverables: parse-rate benchmark execution, recovery benchmark v0, Mode 1 client integration, and public-readiness pass.",
+      "source_refs": ["docs/planning/2026-04-20-delivery-plan.md"],
+      "auto_fail_if_wrong": false
+    },
+    {
+      "id": "GT11",
+      "category": "load_bearing_decision",
+      "text": "Mimir's primary value proposition is catastrophic-loss recovery; token savings, cross-session continuity, and proactive recall are bonuses.",
+      "source_refs": ["docs/planning/2026-04-20-mission-scope-and-recovery-benchmark.md"],
+      "auto_fail_if_wrong": true
+    },
+    {
+      "id": "GT12",
+      "category": "load_bearing_decision",
+      "text": "The three-pillar mission is BC/DR, memory graduation, and sanitized cross-agent sharing; Mimir is not a daily-memory replacement.",
+      "source_refs": ["docs/planning/2026-04-20-mission-scope-and-recovery-benchmark.md"],
+      "auto_fail_if_wrong": true
+    },
+    {
+      "id": "GT13",
+      "category": "load_bearing_decision",
+      "text": "Agent-native at the runtime surface is load-bearing: MCP responses, retrieved payloads, and recovery digests should be token-dense and structured, while human-readable output belongs to observability surfaces.",
+      "source_refs": ["AGENTS.md", "docs/planning/2026-04-20-mission-scope-and-recovery-benchmark.md"],
+      "auto_fail_if_wrong": true
+    },
+    {
+      "id": "GT14",
+      "category": "load_bearing_decision",
+      "text": "The Phase 5 public flip is gated on deliverables A, B, C, and D completing, not on an external deadline.",
+      "source_refs": ["docs/planning/2026-04-20-delivery-plan.md"],
+      "auto_fail_if_wrong": true
+    },
+    {
+      "id": "GT15",
+      "category": "load_bearing_decision",
+      "text": "The two librarian modes under consideration were extensions of the shipping design: Mode 1 as Claude-as-librarian plus client integration, and Mode 2 as a local Ollama arbiter implementing the already-specified InferenceProposer hook.",
+      "source_refs": ["docs/planning/2026-04-20-mission-scope-and-recovery-benchmark.md"],
+      "auto_fail_if_wrong": true
+    },
+    {
+      "id": "GT16",
+      "category": "recent_feedback_open_work",
+      "text": "Two CHANGELOG conflicts were resolved during the 2026-04-20 merge wave by concatenating both Added sections without dropping content.",
+      "source_refs": ["research/recovery-benchmark/scenarios/01-example-session-context-loss.md"],
+      "auto_fail_if_wrong": false
+    },
+    {
+      "id": "GT17",
+      "category": "recent_feedback_open_work",
+      "text": "Four memory files were saved during the session and one was updated with the CI quota diagnostic fingerprint.",
+      "source_refs": ["research/recovery-benchmark/scenarios/01-example-session-context-loss.md"],
+      "auto_fail_if_wrong": false
+    },
+    {
+      "id": "GT18",
+      "category": "recent_feedback_open_work",
+      "text": "The immediate next step in the historical delivery plan was to scout A and B in parallel while CI quota was out; execution was blocked on a batched operator unblock.",
+      "source_refs": ["docs/planning/2026-04-20-delivery-plan.md"],
+      "auto_fail_if_wrong": false
+    },
+    {
+      "id": "GT19",
+      "category": "recent_feedback_open_work",
+      "text": "Benchmark A's scaffold was verified ready: the corpus parsed 100/100 via verify_corpus.py on 2026-04-20.",
+      "source_refs": ["docs/research/2026-04-20-llm-fluency-cc-baseline.md", "research/llm-fluency/verify_corpus.py"],
+      "auto_fail_if_wrong": false
+    },
+    {
+      "id": "GT20",
+      "category": "recent_feedback_open_work",
+      "text": "There is no production Anthropic API dependency in Mimir; the Phase 3.2 benchmark used the API only as a measurement instrument.",
+      "source_refs": ["docs/planning/2026-04-20-mission-scope-and-recovery-benchmark.md", "docs/research/2026-04-20-llm-fluency-cc-baseline.md"],
+      "auto_fail_if_wrong": false
+    }
+  ],
+  "staleness_tests": [
+    {
+      "id": "S1",
+      "superseded_fact": "The benchmark would use the Anthropic API as Mimir's operating surface.",
+      "current_fact": "Production has no API dependency; API use is measurement-only.",
+      "expected_behavior": "Do not surface the API-operating-surface framing as current."
+    },
+    {
+      "id": "S2",
+      "superseded_fact": "The benchmark would compare five invented scenarios.",
+      "current_fact": "The accepted pattern is one worked example plus operator-provided real scenarios and ground truth.",
+      "expected_behavior": "Do not surface the five-invented-scenarios plan as current."
+    },
+    {
+      "id": "S3",
+      "superseded_fact": "The initial merge plan was ambiguous: start with PR #1 and #6 myself, or ask the operator to review/merge.",
+      "current_fact": "The ambiguity was resolved by the operator's approval to proceed.",
+      "expected_behavior": "Do not surface the merge-plan ambiguity as unresolved."
+    }
+  ]
+}

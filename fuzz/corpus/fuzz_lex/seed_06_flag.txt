@@ -1,0 +1,2 @@
+(pin @mem_42 :actor @mira)
+(authoritative_set @mem_43 :actor @operator)

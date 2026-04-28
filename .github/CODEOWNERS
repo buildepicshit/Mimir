@@ -1,0 +1,21 @@
+# Code review assignment. GitHub surfaces owners automatically on PRs.
+# See https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-security/customizing-your-repository/about-code-owners
+
+# Catch-all
+*    @AlainDor
+
+# Security-sensitive surfaces — explicit ownership so a `*`-rule rewrite
+# never accidentally lifts the per-file gate. These files implement the
+# canonical store's durability + decoding boundary.
+/crates/mimir-core/src/log.rs            @AlainDor
+/crates/mimir-core/src/store.rs          @AlainDor
+/crates/mimir-core/src/canonical.rs      @AlainDor
+/crates/mimir-core/src/dag.rs            @AlainDor
+
+# Release pipeline + CI workflows — load-bearing for supply-chain safety
+# once the release pipeline lands (per docs/planning/.../Phase 1.5).
+/.github/workflows/                      @AlainDor
+/Cargo.toml                              @AlainDor
+/Cargo.lock                              @AlainDor
+/deny.toml                               @AlainDor
+/rust-toolchain.toml                     @AlainDor

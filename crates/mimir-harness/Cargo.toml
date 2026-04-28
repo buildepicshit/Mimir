@@ -1,0 +1,38 @@
+[package]
+name = "mimir-harness"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Mimir transparent agent launch harness."
+readme = "README.md"
+homepage = "https://github.com/buildepicshit/Mimir"
+documentation = "https://docs.rs/mimir-harness"
+keywords = ["mimir", "agent", "memory", "harness", "cli"]
+categories = ["command-line-utilities", "development-tools"]
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "mimir"
+path = "src/main.rs"
+
+[lib]
+name = "mimir_harness"
+path = "src/lib.rs"
+
+[dependencies]
+mimir-cli = { workspace = true }
+mimir-core = { workspace = true }
+mimir-librarian = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
+toml = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

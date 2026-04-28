@@ -1,0 +1,74 @@
+# ----- Rust build artefacts -----
+/target/
+**/target/
+Cargo.lock.bak
+*.rs.bk
+*.pdb
+
+# ----- Python environment (research tooling only) -----
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# ----- Research & experimental tooling (gitignored until promoted) -----
+#
+# Default: everything under `research/` is gitignored. Exception below
+# carves out `research/llm-fluency/` — the Phase 3.2 benchmark apparatus
+# is load-bearing for the wire-surface existential gate, so the corpus
+# + harness are tracked and reviewable *before* any run. Run outputs
+# (reproducible from the committed apparatus) stay gitignored.
+#
+# Pattern: `research/*` (not `research/`) keeps the directory itself
+# traversable so `!research/llm-fluency` can take effect. Git cannot
+# re-include a file whose parent directory is excluded — see git-scm
+# "PATTERN FORMAT" docs.
+research/*
+!research/llm-fluency
+!research/recovery-benchmark
+!research/librarian
+research/llm-fluency/results/
+research/llm-fluency/*.log
+research/recovery-benchmark/results/
+research/librarian/results/
+experiments/
+
+# ----- Fuzz / coverage runtime artefacts (never committed) -----
+fuzz/artifacts/
+fuzz/coverage/
+*.profraw
+*.profdata
+
+# ----- Machine-local Claude Code state (user-specific, never committed) -----
+.claude/settings.local.json
+.claude/settings.json
+.claude/skills/
+
+# ----- Mimir operator-local state (per-operator workspace data, never committed) -----
+.mimir/
+
+# ----- Scratch & debug output -----
+*.log
+out.txt
+scratch_*
+*.tmp
+build_*.txt
+test_*.txt
+
+# ----- OS noise -----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ----- IDE state -----
+.idea/
+.vscode/
+*.code-workspace
+.helix/
+*.swp
+*.swo

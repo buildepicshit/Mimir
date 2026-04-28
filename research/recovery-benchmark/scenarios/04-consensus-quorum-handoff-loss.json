@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "id": "04-consensus-quorum-handoff-loss",
+  "status": "illustrative",
+  "title": "Consensus quorum artifact loss and governed handoff recovery",
+  "source_markdown": "04-consensus-quorum-handoff-loss.md",
+  "situation": "A long design deliberation used Claude, Codex, or recorded fixture participants to produce quorum artifacts. Local session context is lost before the next agent resumes, so recovery must reconstruct what the quorum decided, what dissent remained, and which outputs were only evidence drafts.",
+  "cold_start_prompt": "We lost the quorum session context. What did the agents decide, what dissent remains, and what can safely become memory?",
+  "work_instruction_test": "Recover the quorum boundary without treating a majority vote or synthesizer output as canonical truth.",
+  "cutoff_minutes": 15,
+  "baselines": [
+    {
+      "id": "A",
+      "name": "no_memory",
+      "preserved_state": "Only the repository checkout exists; no quorum artifacts or governed drafts survive."
+    },
+    {
+      "id": "B",
+      "name": "preserved_markdown_directory",
+      "preserved_state": "A native memory directory contains informal notes about the quorum but not the structured episode artifacts."
+    },
+    {
+      "id": "C",
+      "name": "curated_handoff_doc",
+      "preserved_state": "A handoff summarizes the quorum outcome and known dissent."
+    },
+    {
+      "id": "D",
+      "name": "mimir_mode_1",
+      "preserved_state": "Quorum episode/result artifacts plus Mimir drafts or governed records are recoverable."
+    }
+  ],
+  "ground_truth": [
+    {
+      "id": "GT01",
+      "category": "load_bearing_decision",
+      "text": "Consensus outputs are governed evidence, not truth; canonical memory still requires the librarian path.",
+      "source_refs": ["AGENTS.md", "docs/concepts/consensus-quorum.md"],
+      "auto_fail_if_wrong": true
+    },
+    {
+      "id": "GT02",
+      "category": "load_bearing_decision",
+      "text": "A quorum result must preserve participant identity, prompts, votes, dissent, and provenance.",
+      "source_refs": ["AGENTS.md", "docs/concepts/consensus-quorum.md"],
+      "auto_fail_if_wrong": true
+    },
+    {
+      "id": "GT03",
+      "category": "project_state",
+      "text": "Quorum outputs may enter Mimir as consensus_quorum drafts or review artifacts; they do not bypass draft validation.",
+      "source_refs": ["docs/concepts/consensus-quorum.md", "STATUS.md"],
+      "auto_fail_if_wrong": false
+    },
+    {
+      "id": "GT04",
+      "category": "load_bearing_decision",
+      "text": "Independent-first visibility gating matters: participants should produce independent outputs before seeing critique or synthesis context.",
+      "source_refs": ["docs/concepts/consensus-quorum.md"],
+      "auto_fail_if_wrong": true
+    },
+    {
+      "id": "GT05",
+      "category": "project_state",
+      "text": "The implemented quorum CLI includes create, adapter-plan, adapter-run-rounds, synthesize-run, accept-synthesis, pilot-run, pilot-review, pilot-summary, and submit-drafts style artifact commands.",
+      "source_refs": ["docs/concepts/consensus-quorum.md", "STATUS.md"],
+      "auto_fail_if_wrong": false
+    },
+    {
+      "id": "GT06",
+      "category": "load_bearing_decision",
+      "text": "One physical model playing multiple personas is not the same as cross-model agreement; the episode must record participant surfaces honestly.",
+      "source_refs": ["AGENTS.md", "docs/concepts/consensus-quorum.md"],
+      "auto_fail_if_wrong": true
+    },
+    {
+      "id": "GT07",
+      "category": "recent_feedback_open_work",
+      "text": "Pilot manifests can require a minimum proposed-draft count before summary or pass review should be treated as complete.",
+      "source_refs": ["docs/concepts/consensus-quorum.md", "STATUS.md"],
+      "auto_fail_if_wrong": false
+    },
+    {
+      "id": "GT08",
+      "category": "project_state",
+      "text": "Recorded fixture smoke tests exist for quorum artifact flow, while public claims still wait for bounded live wrapped-agent pilots.",
+      "source_refs": ["docs/concepts/consensus-quorum.md", "STATUS.md"],
+      "auto_fail_if_wrong": false
+    }
+  ],
+  "staleness_tests": [
+    {
+      "id": "S1",
+      "superseded_fact": "A quorum majority vote can be promoted directly as truth.",
+      "current_fact": "Majority is evidence; canonical memory still requires librarian validation and dissent preservation.",
+      "expected_behavior": "Report majority and dissent separately, not as automatic truth."
+    },
+    {
+      "id": "S2",
+      "superseded_fact": "A single model playing several personas is enough to claim cross-model consensus.",
+      "current_fact": "The episode must record participant identity and whether one physical agent played multiple personas.",
+      "expected_behavior": "Do not erase participant-surface provenance."
+    }
+  ]
+}

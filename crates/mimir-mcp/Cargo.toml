@@ -1,0 +1,52 @@
+[package]
+name = "mimir-mcp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Mimir MCP (Model Context Protocol) stdio server for governed local memory access."
+readme = "README.md"
+homepage = "https://github.com/buildepicshit/Mimir"
+documentation = "https://docs.rs/mimir-mcp"
+keywords = ["mcp", "agent", "memory", "claude", "modelcontextprotocol"]
+categories = ["command-line-utilities", "data-structures"]
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "mimir-mcp"
+path = "src/main.rs"
+
+[lib]
+name = "mimir_mcp"
+path = "src/lib.rs"
+
+[dependencies]
+mimir-core = { workspace = true }
+# `mimir-cli`'s library surface (LispRenderer, verify, VerifyReport,
+# iso8601_from_millis) wraps mimir_core internals into shapes the MCP
+# read tools return. Depending on mimir-cli (the library, not the
+# binary) keeps the rendering / verification logic in one place rather
+# than copy-pasting it into the MCP tool implementations.
+mimir-cli = { workspace = true }
+rmcp = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+schemars = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+thiserror = { workspace = true }
+getrandom = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "sync", "time", "io-std", "io-util"] }
+# `client` feature adds the in-memory MCP client used by tests/end_to_end.rs
+# to drive the server over a tokio::io::duplex pair. Cargo merges this with
+# the [dependencies] feature set above, so the production binary still
+# builds with only "server", "macros", "transport-io".
+rmcp = { workspace = true, features = ["client"] }

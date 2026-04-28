@@ -1,0 +1,3 @@
+# rustfmt default settings per PRINCIPLES.md § 7.
+# No custom overrides unless a concrete conflict emerges.
+edition = "2021"

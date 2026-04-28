@@ -1,0 +1,71 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/mimir-core",
+    "crates/mimir-cli",
+    "crates/mimir-mcp",
+    "crates/mimir-librarian",
+    "crates/mimir-harness",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.89"
+license = "Apache-2.0"
+repository = "https://github.com/buildepicshit/Mimir"
+authors = ["Alain Dormehl <alaindormehl@gmail.com>"]
+
+[workspace.lints.rust]
+missing_docs = "deny"
+unreachable_pub = "warn"
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+# PRINCIPLES.md § 7 — clippy additions beyond defaults.
+all = { level = "deny", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "warn"
+todo = "warn"
+dbg_macro = "deny"
+
+[workspace.dependencies]
+# Internal — declared with both path (used in-workspace) and version (used by
+# cargo publish). Versions are kept in lockstep with [workspace.package].version
+# by `crates/mimir-core/tests/doc_drift_tests.rs::internal_workspace_dep_versions_consistency`.
+mimir-core = { path = "crates/mimir-core", version = "=0.1.0" }
+mimir-cli = { path = "crates/mimir-cli", version = "=0.1.0" }
+mimir-librarian = { path = "crates/mimir-librarian", version = "=0.1.0" }
+
+# External
+thiserror = "2.0"
+ulid = "1.1"
+sha2 = "0.11"
+proptest = "1.5"
+tempfile = "3.12"
+toml = { version = "0.8", default-features = false, features = ["parse"] }
+anyhow = "1.0"
+criterion = { version = "0.5", default-features = false, features = ["cargo_bench_support"] }
+tracing = { version = "0.1", default-features = false, features = ["std", "attributes"] }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["std", "fmt", "json", "registry", "env-filter"] }
+# Subprocess wait-with-timeout. 11-year-old, zero-dep (on Unix uses
+# libc directly; on Windows uses winapi), MIT/Apache-2.0. Used by the
+# librarian's ClaudeCliInvoker to bound each `claude -p` invocation at
+# a configurable timeout.
+wait-timeout = "0.2"
+# MCP — Phase 2 of the prime-time roadmap. Pinned exact-match because rmcp's
+# 1.x line is still on a 2-3-week release cadence with occasional API tweaks
+# (the SDK only graduated to 1.0 in 2026-01); a Dependabot bump should land as
+# a deliberate review, not a free patch. Re-evaluate cadence at v1.0.
+rmcp = { version = "=1.5.0", default-features = false, features = ["server", "macros", "transport-io"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+schemars = "1.0"
+rusqlite = { version = "0.32", features = ["bundled"] }
+tokio = { version = "1", default-features = false, features = ["macros", "rt", "sync", "time", "io-std"] }
+# Cryptographically-secure RNG for MCP write-lease tokens. Uses the OS
+# entropy source on every supported target. Adding this rather than the
+# heavier `rand` crate because the only consumer is a 16-byte fill.
+getrandom = "0.4"

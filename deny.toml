@@ -1,0 +1,73 @@
+# cargo-deny configuration — enforces PRINCIPLES.md § 8 dependency policy.
+
+[graph]
+targets = [
+    { triple = "x86_64-unknown-linux-gnu" },
+    { triple = "aarch64-unknown-linux-gnu" },
+    { triple = "x86_64-apple-darwin" },
+    { triple = "aarch64-apple-darwin" },
+    # Windows MSVC — added 2026-04-19 with the 3-OS CI matrix landing
+    # so deny.toml's declared support set matches what CI actually
+    # exercises. (Phase 1.2 of the prime-time roadmap.)
+    { triple = "x86_64-pc-windows-msvc" },
+]
+
+[licenses]
+# Allowed license set per PRINCIPLES.md § 8.
+allow = [
+    "Apache-2.0",
+    "MIT",
+    "BSD-3-Clause",
+    "BSD-2-Clause",
+    "ISC",
+    "0BSD",
+    "Unlicense",
+    "CC0-1.0",
+    "Zlib",
+    "Unicode-3.0",
+]
+confidence-threshold = 0.93
+# Keep the policy allow-list stable even when the current dependency
+# graph does not exercise every approved license.
+unused-allowed-license = "allow"
+# Additions require explicit review and a spec update.
+exceptions = []
+
+[bans]
+multiple-versions = "warn"
+# Accepted transitive duplicate versions. Each entry is kept narrow so
+# new duplicate crates still produce a warning.
+skip = [
+    # `rand_core` via `proptest`/`ulid` is still on `getrandom` 0.3,
+    # while `tempfile` and Mimir's MCP token generation use 0.4.
+    { name = "getrandom", version = "=0.3.4" },
+    # `rusqlite` pulls `hashlink` -> `hashbrown` 0.14; `toml` pulls
+    # `indexmap` -> `hashbrown` 0.17.
+    { name = "hashbrown", version = "=0.14.5" },
+]
+# Explicit bans on dependencies evaluated and rejected.
+# Populate as we encounter them.
+deny = []
+
+[advisories]
+# Fail CI on any known vulnerability or yanked crate in the dep tree.
+# Defaults are intentional: cargo-deny always denies vulnerability +
+# notice advisories on its current schema (no opt-out, which is what
+# we want — closes the spirit of audit F8 P3 even though the explicit
+# `vulnerability = "deny"` form was removed). To suppress a specific
+# advisory, add it to `ignore` with a documented reason.
+#
+# Schema note: kept minimal because the bundled cargo-deny shipped
+# with `EmbarkStudios/cargo-deny-action@v2.0.13` is in transition —
+# it still accepts the older field NAMES (`vulnerability`, `notice`,
+# `unsound`) but requires the newer ENUM values for `unmaintained`
+# (`all`/`workspace`/`transitive`/`none`, not `warn`/`deny`).
+# Sticking to the bare minimum that's known-stable across versions.
+yanked = "deny"
+ignore = []
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+# Only crates.io by default. Git-dep exceptions require explicit review.
+allow-git = []

@@ -1,0 +1,46 @@
+[package]
+name = "mimir-librarian"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Mimir — librarian. Ingests prose memory drafts, sanitises them (separates observations from directives), structures them into canonical Mimir Lisp, and commits them to the canonical log via the in-process `mimir_core::Pipeline`. Category 1 of the 2026-04-21 Rolls Royce engineering plan."
+readme = "README.md"
+homepage = "https://github.com/buildepicshit/Mimir"
+documentation = "https://docs.rs/mimir-librarian"
+keywords = ["mimir", "agent", "memory", "librarian", "claude"]
+categories = ["command-line-utilities", "data-structures"]
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "mimir-librarian"
+path = "src/main.rs"
+
+[lib]
+name = "mimir_librarian"
+path = "src/lib.rs"
+
+[dependencies]
+# Internal — the librarian validates candidate records in-process via
+# `mimir_core::Pipeline::compile_batch` (clone-on-write rollback means
+# invalid batches leave no state), so we depend on mimir-core directly.
+# No dependency on mimir-mcp; writer exclusion is shared through
+# mimir-core's workspace lockfile guard.
+mimir-core = { workspace = true }
+
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+rusqlite = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+wait-timeout = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

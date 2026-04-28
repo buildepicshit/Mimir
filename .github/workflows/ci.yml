@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Read-only by default; jobs that need elevated permissions opt in.
+permissions: read-all
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  fmt:
+    name: cargo fmt --check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: install toolchain
+        run: rustup show
+      - name: fmt check
+        run: cargo fmt --all -- --check
+
+  clippy:
+    name: cargo clippy -D warnings
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: install toolchain
+        run: rustup show
+      - name: cache
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+      - name: clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+  test:
+    name: cargo test
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: install toolchain
+        run: rustup show
+      - name: cache
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+      - name: test
+        run: cargo test --all-features
+      - name: doctests
+        run: cargo test --doc --all-features
+
+  deny:
+    # cargo-deny check covers licenses + bans + sources + advisories
+    # (the [advisories] block in deny.toml gates RustSec entries and
+    # yanked crates). Effectively the same advisory coverage that a
+    # separate `cargo audit` job would provide.
+    #
+    # cargo-audit history (third deferral, 2026-04-20 pre-cutover
+    # cleanup PR):
+    #   1. Phase 1.2 — deferred: cargo-audit transitive needed
+    #      rustc 1.88+, Mimir pinned 1.85.
+    #   2. 2026-04-20 attempt 1 — added job, MSRV bumped to 1.88;
+    #      `smol_str@0.3.6` (cargo-audit transitive) now needs 1.89.
+    #   3. 2026-04-20 attempt 2 — MSRV bumped to 1.89; the
+    #      `rustsec/audit-check` action uploads SARIF, which requires
+    #      GitHub Code Scanning (a GHAS feature unavailable on
+    #      private repos), and the workflow rejects all 9 jobs at
+    #      run-start with no step-level error visibility. Same gate
+    #      that blocks the CodeQL + Scorecard workflows on this repo.
+    # Re-enable after the public flip (Phase 5) when GHAS becomes
+    # free for the public repo.
+    name: cargo deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: cargo-deny
+        uses: EmbarkStudios/cargo-deny-action@91bf2b620e09e18d6eb78b92e7861937469acedb # v2.0.17
+        with:
+          command: check

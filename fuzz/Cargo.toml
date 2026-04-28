@@ -1,0 +1,49 @@
+[package]
+name = "mimir-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+mimir_core = { package = "mimir-core", path = "../crates/mimir-core" }
+arbitrary = { version = "1.4", features = ["derive"] }
+
+# Prevent this from being picked up by the workspace.
+[workspace]
+
+[[bin]]
+name = "fuzz_lex"
+path = "fuzz_targets/fuzz_lex.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_parse"
+path = "fuzz_targets/fuzz_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_decoder"
+path = "fuzz_targets/fuzz_decoder.rs"
+test = false
+doc = false
+bench = false
+
+# No `fuzz_roundtrip` target — encoder/decoder round-trip is
+# covered structurally by the proptest-generated
+# `sem_record_roundtrips` / `edge_record_roundtrip` /
+# `every_source_bound_is_in_range` tests under
+# `crates/mimir-core/tests/properties.rs`. Those use typed
+# `Arbitrary`-equivalent strategies, which the byte-level fuzzer
+# cannot easily reach.
+
+# libfuzzer-sys targets need release-mode profile for meaningful coverage.
+[profile.release]
+debug = 1

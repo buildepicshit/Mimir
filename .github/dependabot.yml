@@ -1,0 +1,82 @@
+# Dependabot config — automated dependency update PRs.
+#
+# CADENCE: monthly (was weekly until 2026-04-20). The org is on the
+# free GitHub Actions tier; each Dependabot PR triggers a full CI
+# matrix run (~30 runner-minutes for 8 jobs across 3 OSes), and the
+# org burned through its monthly quota in one heavy session. Monthly
+# cadence keeps non-security PRs to ~1-2 per ecosystem per month
+# while preserving immediate security-advisory pickup (security
+# updates fire regardless of schedule per Dependabot's own rules).
+#
+# When Actions quota is restored or the project goes public (free
+# unlimited minutes for public repos), revisit the cadence — weekly
+# is the standard recommendation.
+
+version: 2
+
+updates:
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      day: "first monday"
+      time: "08:00"
+      timezone: "Etc/UTC"
+    # Capped low to bound monthly CI consumption. Security advisories
+    # bypass this limit per Dependabot's documented behaviour.
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    groups:
+      # Group ALL non-major updates into a single PR per cycle to
+      # consume one CI run instead of N. The trade-off: harder to
+      # bisect a single bad update, but acceptable on a small
+      # workspace with strong test coverage.
+      all-non-major:
+        update-types:
+          - "patch"
+          - "minor"
+    # Per-crate ignore rules. Two kinds of entries live here:
+    #   1. MSRV-blocked: latest major/minor requires a newer rustc
+    #      than rust-toolchain.toml pins. Dependabot can't read
+    #      rust-version constraints; we ignore until MSRV moves.
+    #   2. Manual-review-only: the dep's pre-1.0 minor bumps are
+    #      breaking by Cargo's interpretation, so even with
+    #      adequate MSRV they should land as deliberate review
+    #      rather than auto-merged patches.
+    # Re-evaluate every entry whenever rust-toolchain.toml moves.
+    ignore:
+      - dependency-name: "criterion"
+        # criterion 0.5 -> 0.8 is a real benchmarking API break.
+        # MSRV is now 1.89 so 0.6 and 0.7 build, but a major bump
+        # still needs human review. Minor bumps within 0.5.x still
+        # flow (handled by the all-non-major group above).
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "toml"
+        # toml 1.x bundles a TOML *spec* version bump (1.0 -> 1.1)
+        # alongside the parser API rewrite. Hold at 0.8.x; revisit
+        # when the Rust toml ecosystem (toml-edit etc.) stabilizes
+        # on the new spec.
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      day: "first monday"
+      time: "08:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: "chore(ci)"
+      include: "scope"
+    groups:
+      # Same grouping rationale as cargo: one PR per cycle.
+      all-non-major:
+        update-types:
+          - "patch"
+          - "minor"

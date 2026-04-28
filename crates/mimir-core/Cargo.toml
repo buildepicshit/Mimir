@@ -1,0 +1,34 @@
+[package]
+name = "mimir-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Mimir — agent-first memory core: foundational types and invariants."
+readme = "README.md"
+homepage = "https://github.com/buildepicshit/Mimir"
+documentation = "https://docs.rs/mimir-core"
+keywords = ["agent", "memory", "llm", "claude", "compiler"]
+categories = ["data-structures", "database-implementations", "encoding"]
+
+[lints]
+workspace = true
+
+[dependencies]
+thiserror = { workspace = true }
+ulid = { workspace = true }
+sha2 = { workspace = true }
+toml = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+tempfile = { workspace = true }
+criterion = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[[bench]]
+name = "read_path"
+harness = false
