@@ -17,6 +17,8 @@ use tracing_subscriber::layer::{Context, SubscriberExt};
 use tracing_subscriber::registry::LookupSpan;
 use tracing_subscriber::Layer;
 
+static CAPTURE_LOCK: Mutex<()> = Mutex::new(());
+
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 enum FieldValue {
@@ -90,6 +92,14 @@ struct CaptureShared {
     spans: Arc<Mutex<Vec<CapturedSpan>>>,
 }
 
+impl CaptureShared {
+    fn push_span_snapshot(&self, name: String, fields: HashMap<String, FieldValue>) {
+        if let Ok(mut spans) = self.spans.lock() {
+            spans.push(CapturedSpan { name, fields });
+        }
+    }
+}
+
 struct CaptureLayer {
     shared: CaptureShared,
 }
@@ -114,9 +124,16 @@ where
 
     fn on_record(&self, id: &tracing::Id, values: &tracing::span::Record<'_>, ctx: Context<'_, S>) {
         if let Some(span_ref) = ctx.span(id) {
-            let mut exts = span_ref.extensions_mut();
-            if let Some(collector) = exts.get_mut::<FieldCollector>() {
-                values.record(collector);
+            let name = span_ref.name().to_string();
+            let fields = {
+                let mut exts = span_ref.extensions_mut();
+                exts.get_mut::<FieldCollector>().map(|collector| {
+                    values.record(collector);
+                    collector.0.clone()
+                })
+            };
+            if let Some(fields) = fields {
+                self.shared.push_span_snapshot(name, fields);
             }
         }
     }
@@ -129,11 +146,7 @@ where
                 .get::<FieldCollector>()
                 .map(|c| c.0.clone())
                 .unwrap_or_default();
-            self.shared
-                .spans
-                .lock()
-                .unwrap()
-                .push(CapturedSpan { name, fields });
+            self.shared.push_span_snapshot(name, fields);
         }
     }
 
@@ -148,12 +161,20 @@ where
 }
 
 fn capture<F: FnOnce()>(f: F) -> CaptureShared {
+    let _lock = match CAPTURE_LOCK.lock() {
+        Ok(lock) => lock,
+        Err(poisoned) => poisoned.into_inner(),
+    };
     let shared = CaptureShared::default();
     let layer = CaptureLayer {
         shared: shared.clone(),
     };
     let subscriber = tracing_subscriber::registry().with(layer);
-    tracing::subscriber::with_default(subscriber, f);
+    tracing::subscriber::with_default(subscriber, || {
+        tracing::callsite::rebuild_interest_cache();
+        f();
+    });
+    tracing::callsite::rebuild_interest_cache();
     shared
 }
 
@@ -170,6 +191,7 @@ fn compile_batch_span_carries_record_counts() {
     let spans = shared.spans.lock().unwrap();
     let span = spans
         .iter()
+        .rev()
         .find(|s| s.name == "mimir.pipeline.compile_batch")
         .expect("compile_batch span");
     assert!(

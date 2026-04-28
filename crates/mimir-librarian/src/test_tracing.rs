@@ -73,6 +73,14 @@ pub(crate) struct CaptureShared {
     pub(crate) spans: Arc<Mutex<Vec<CapturedSpan>>>,
 }
 
+impl CaptureShared {
+    fn push_span_snapshot(&self, name: String, fields: HashMap<String, FieldValue>) {
+        if let Ok(mut spans) = self.spans.lock() {
+            spans.push(CapturedSpan { name, fields });
+        }
+    }
+}
+
 struct CaptureLayer {
     shared: CaptureShared,
 }
@@ -96,9 +104,16 @@ where
 
     fn on_record(&self, id: &tracing::Id, values: &tracing::span::Record<'_>, ctx: Context<'_, S>) {
         if let Some(span_ref) = ctx.span(id) {
-            let mut extensions = span_ref.extensions_mut();
-            if let Some(collector) = extensions.get_mut::<FieldCollector>() {
-                values.record(collector);
+            let name = span_ref.name().to_string();
+            let fields = {
+                let mut extensions = span_ref.extensions_mut();
+                extensions.get_mut::<FieldCollector>().map(|collector| {
+                    values.record(collector);
+                    collector.0.clone()
+                })
+            };
+            if let Some(fields) = fields {
+                self.shared.push_span_snapshot(name, fields);
             }
         }
     }
@@ -110,12 +125,8 @@ where
                 .get::<FieldCollector>()
                 .map(|collector| collector.0.clone())
                 .unwrap_or_default();
-            if let Ok(mut spans) = self.shared.spans.lock() {
-                spans.push(CapturedSpan {
-                    name: span_ref.name().to_string(),
-                    fields,
-                });
-            }
+            self.shared
+                .push_span_snapshot(span_ref.name().to_string(), fields);
         }
     }
 }
