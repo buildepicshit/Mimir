@@ -20,7 +20,7 @@ Identical prompt across all four baselines.
 
 ## Ground-truth checklist
 
-Each item is a fact the agent should surface during recovery. Independently verifiable from `git log`, `docs/planning/2026-04-20-*.md`, the operator-specific memory files under `.claude/projects/.../memory/`, or a direct `mimir_read` query against the Mimir log.
+Each item is a fact the agent should surface during recovery. Independently verifiable from `git log`, `.planning/planning/2026-04-20-*.md`, the operator-specific memory files under `.claude/projects/.../memory/`, or a direct `mimir_read` query against the Mimir log.
 
 ### Operator profile (5 items)
 1. Operator is Alain Dormehl, owner of Mimir / BES Studios.

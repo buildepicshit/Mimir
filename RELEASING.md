@@ -1,6 +1,6 @@
 # Releasing Mimir
 
-This document is the canonical runbook for cutting a release. The pipeline lives in `.github/workflows/release.yml` (Phase 1.5 of `docs/planning/2026-04-19-roadmap-to-prime-time.md`).
+This document is the canonical runbook for cutting a release. The pipeline lives in `.github/workflows/release.yml`.
 
 Mimir follows [SemVer](https://semver.org/) once it reaches its first release. Pre-1.0 series may carry breaking wire-format changes between minor versions and will be called out in `CHANGELOG.md` under `### Changed — wire format`.
 

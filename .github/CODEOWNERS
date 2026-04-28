@@ -12,8 +12,7 @@
 /crates/mimir-core/src/canonical.rs      @AlainDor
 /crates/mimir-core/src/dag.rs            @AlainDor
 
-# Release pipeline + CI workflows — load-bearing for supply-chain safety
-# once the release pipeline lands (per docs/planning/.../Phase 1.5).
+# Release pipeline + CI workflows — load-bearing for supply-chain safety.
 /.github/workflows/                      @AlainDor
 /Cargo.toml                              @AlainDor
 /Cargo.lock                              @AlainDor

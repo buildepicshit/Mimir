@@ -6,7 +6,7 @@
 
 > **Current MCP surface.** Mimir's 2026-04-24 mandate targets adapter-mediated agent surfaces: Claude and Codex first, future agents through draft/retrieval adapters. This crate remains the Claude MCP surface until `scope-model.md` graduates into implementation. Other clients may technically connect because MCP is standard, but they are not supported by this crate until an adapter is explicitly specified.
 
-> **Phase 2.3 status.** Full read + write surface live (9 tools). See [`docs/planning/2026-04-19-roadmap-to-prime-time.md`](https://github.com/buildepicshit/Mimir/blob/main/docs/planning/2026-04-19-roadmap-to-prime-time.md) for the roadmap-to-public timeline.
+> **Current tool status.** Full read + write surface live (9 tools). See [`docs/README.md`](https://github.com/buildepicshit/Mimir/blob/main/docs/README.md) for current public documentation.
 
 ## Install
 

@@ -11,7 +11,7 @@ Every spec carries a `> **Status: <state>**` banner in its first paragraph. As o
 
 As of 2026-04-24, Mimir also has draft mandate-expansion specs for [`scope-model.md`](scope-model.md) and [`consensus-quorum.md`](consensus-quorum.md). They reflect the accepted shift from absolute workspace isolation to scoped memory governance plus governed cross-agent deliberation. They are not fully implemented yet and do not make the older implementation specs false; they define the next architecture layer those specs must evolve toward.
 
-The accepted product launch-boundary direction is recorded separately in [`../planning/2026-04-24-transparent-agent-harness.md`](../planning/2026-04-24-transparent-agent-harness.md): users launch normal agents as `mimir <agent> [agent args...]`, and Mimir preserves the native terminal flow while wrapping the session with governed memory.
+The accepted product launch-boundary direction is now part of the public quickstart: users launch normal agents as `mimir <agent> [agent args...]`, and Mimir preserves the native terminal flow while wrapping the session with governed memory. See [`../../README.md`](../../README.md#running-mimir) and [`../first-run.md`](../first-run.md).
 
 ## The 14 authoritative implementation specs
 

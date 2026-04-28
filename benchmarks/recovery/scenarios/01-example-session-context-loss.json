@@ -56,7 +56,7 @@
       "id": "GT04",
       "category": "operator_profile",
       "text": "Mimir stays private until the operator is happy it delivers on its promises; phase ordering is not a public deadline.",
-      "source_refs": ["docs/planning/2026-04-19-roadmap-to-prime-time.md"],
+      "source_refs": [".planning/planning/2026-04-19-roadmap-to-prime-time.md"],
       "auto_fail_if_wrong": false
     },
     {
@@ -91,49 +91,49 @@
       "id": "GT09",
       "category": "project_state",
       "text": "Three planning docs were on main: roadmap to prime time, mission scope and recovery benchmark, and delivery plan.",
-      "source_refs": ["docs/planning/2026-04-19-roadmap-to-prime-time.md", "docs/planning/2026-04-20-mission-scope-and-recovery-benchmark.md", "docs/planning/2026-04-20-delivery-plan.md"],
+      "source_refs": [".planning/planning/2026-04-19-roadmap-to-prime-time.md", ".planning/planning/2026-04-20-mission-scope-and-recovery-benchmark.md", ".planning/planning/2026-04-20-delivery-plan.md"],
       "auto_fail_if_wrong": false
     },
     {
       "id": "GT10",
       "category": "project_state",
       "text": "The delivery plan had four pre-flip deliverables: parse-rate benchmark execution, recovery benchmark v0, Mode 1 client integration, and public-readiness pass.",
-      "source_refs": ["docs/planning/2026-04-20-delivery-plan.md"],
+      "source_refs": [".planning/planning/2026-04-20-delivery-plan.md"],
       "auto_fail_if_wrong": false
     },
     {
       "id": "GT11",
       "category": "load_bearing_decision",
       "text": "Mimir's primary value proposition is catastrophic-loss recovery; token savings, cross-session continuity, and proactive recall are bonuses.",
-      "source_refs": ["docs/planning/2026-04-20-mission-scope-and-recovery-benchmark.md"],
+      "source_refs": [".planning/planning/2026-04-20-mission-scope-and-recovery-benchmark.md"],
       "auto_fail_if_wrong": true
     },
     {
       "id": "GT12",
       "category": "load_bearing_decision",
       "text": "The three-pillar mission is BC/DR, memory graduation, and sanitized cross-agent sharing; Mimir is not a daily-memory replacement.",
-      "source_refs": ["docs/planning/2026-04-20-mission-scope-and-recovery-benchmark.md"],
+      "source_refs": [".planning/planning/2026-04-20-mission-scope-and-recovery-benchmark.md"],
       "auto_fail_if_wrong": true
     },
     {
       "id": "GT13",
       "category": "load_bearing_decision",
       "text": "Agent-native at the runtime surface is load-bearing: MCP responses, retrieved payloads, and recovery digests should be token-dense and structured, while human-readable output belongs to observability surfaces.",
-      "source_refs": ["AGENTS.md", "docs/planning/2026-04-20-mission-scope-and-recovery-benchmark.md"],
+      "source_refs": ["AGENTS.md", ".planning/planning/2026-04-20-mission-scope-and-recovery-benchmark.md"],
       "auto_fail_if_wrong": true
     },
     {
       "id": "GT14",
       "category": "load_bearing_decision",
       "text": "The Phase 5 public flip is gated on deliverables A, B, C, and D completing, not on an external deadline.",
-      "source_refs": ["docs/planning/2026-04-20-delivery-plan.md"],
+      "source_refs": [".planning/planning/2026-04-20-delivery-plan.md"],
       "auto_fail_if_wrong": true
     },
     {
       "id": "GT15",
       "category": "load_bearing_decision",
       "text": "The two librarian modes under consideration were extensions of the shipping design: Mode 1 as Claude-as-librarian plus client integration, and Mode 2 as a local Ollama arbiter implementing the already-specified InferenceProposer hook.",
-      "source_refs": ["docs/planning/2026-04-20-mission-scope-and-recovery-benchmark.md"],
+      "source_refs": [".planning/planning/2026-04-20-mission-scope-and-recovery-benchmark.md"],
       "auto_fail_if_wrong": true
     },
     {
@@ -154,21 +154,21 @@
       "id": "GT18",
       "category": "recent_feedback_open_work",
       "text": "The immediate next step in the historical delivery plan was to scout A and B in parallel while CI quota was out; execution was blocked on a batched operator unblock.",
-      "source_refs": ["docs/planning/2026-04-20-delivery-plan.md"],
+      "source_refs": [".planning/planning/2026-04-20-delivery-plan.md"],
       "auto_fail_if_wrong": false
     },
     {
       "id": "GT19",
       "category": "recent_feedback_open_work",
       "text": "Benchmark A's scaffold was verified ready: the corpus parsed 100/100 via verify_corpus.py on 2026-04-20.",
-      "source_refs": ["docs/planning/2026-04-20-delivery-plan.md"],
+      "source_refs": [".planning/planning/2026-04-20-delivery-plan.md"],
       "auto_fail_if_wrong": false
     },
     {
       "id": "GT20",
       "category": "recent_feedback_open_work",
       "text": "There is no production Anthropic API dependency in Mimir; the Phase 3.2 benchmark used the API only as a measurement instrument.",
-      "source_refs": ["docs/planning/2026-04-20-mission-scope-and-recovery-benchmark.md", "docs/planning/2026-04-20-delivery-plan.md"],
+      "source_refs": [".planning/planning/2026-04-20-mission-scope-and-recovery-benchmark.md", ".planning/planning/2026-04-20-delivery-plan.md"],
       "auto_fail_if_wrong": false
     }
   ],

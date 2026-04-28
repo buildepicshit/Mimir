@@ -9,7 +9,7 @@ This file documents the contribution workflow for human contributors and agents 
 - [`AGENTS.md`](AGENTS.md) — authoritative operating manual (architectural invariants, engineering standards, engagement protocol, anti-patterns, commit conventions).
 - [`STATUS.md`](STATUS.md) — current phase and next milestone.
 - [`PRINCIPLES.md`](PRINCIPLES.md) — engineering principles and tooling policy (twelve sections covering testing, error handling, type safety, determinism, observability, performance targets, code style, dependency policy, documentation, semver, deprecation, release).
-- [`docs/planning/2026-04-19-roadmap-to-prime-time.md`](docs/planning/2026-04-19-roadmap-to-prime-time.md) — phased roadmap from feature-complete pre-1.0 to publicly listed v1.0.
+- [`docs/launch-readiness.md`](docs/launch-readiness.md) — public launch readiness and current release gates.
 
 ## Development setup
 

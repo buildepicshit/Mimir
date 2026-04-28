@@ -1,6 +1,6 @@
 # Claude Desktop integration
 
-> **Status: authoritative** (Phase 2.4 of `docs/planning/2026-04-19-roadmap-to-prime-time.md`).
+> **Status: authoritative Claude MCP setup recipe.**
 
 This document is the canonical setup recipe for the current **Claude Desktop** MCP surface. The 2026-04-24 mandate expands Mimir toward adapter-mediated Claude and Codex ingestion, but this integration remains Claude-specific until `scope-model.md` graduates into implementation; for the CLI, see [`claude-code-hook.md`](claude-code-hook.md).
 

@@ -7,8 +7,7 @@
 //! draft/retrieval adapters. This crate remains the Claude MCP surface
 //! until scope-aware adapters are specified; other MCP clients may
 //! technically connect because the protocol is standard, but they are
-//! out of scope for testing, support, and design tuning here. Phase 2
-//! of `docs/planning/2026-04-19-roadmap-to-prime-time.md`.
+//! out of scope for testing, support, and design tuning here.
 //!
 //! The library surface ([`MimirServer`]) is reusable in tests with the
 //! in-memory `tokio::io::duplex` transport; the binary at `src/main.rs`

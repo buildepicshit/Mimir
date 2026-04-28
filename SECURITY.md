@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Mimir is currently an implementation-stage pre-release with no tagged versions yet — see [`STATUS.md`](STATUS.md) and [`docs/planning/2026-04-19-roadmap-to-prime-time.md`](docs/planning/2026-04-19-roadmap-to-prime-time.md). Security reports are accepted for the current `main` branch.
+Mimir is currently an implementation-stage pre-release with no tagged versions yet — see [`STATUS.md`](STATUS.md) and [`docs/launch-readiness.md`](docs/launch-readiness.md). Security reports are accepted for the current `main` branch.
 
 | Version | Supported |
 |---|---|
@@ -61,7 +61,7 @@ The following are explicit non-goals for v1 and are expected behaviour:
 2. **Other local processes running as the same UID.** A second process on the same machine, running as the same user, can already read the canonical-log file directly. The shared workspace lock rejects concurrent Mimir writers, but it is not a sandbox against arbitrary same-UID file access.
 3. **Compromised local toolchain.** A compromised `cargo` SDK install, a compromised Rust toolchain, or a backdoored compiler will result in arbitrary code execution. Resolving the toolchain via `rustup` and pinning to `rust-toolchain.toml` is recommended; deeper supply-chain pinning is out of scope.
 4. **Untrusted-workspace scenarios.** A developer who points `Store::open` at a workspace produced by an untrusted party gets exactly the bytes that workspace contains — the decoder's job is to refuse malformed bytes safely (in scope), not to sandbox a fully-formed adversarial workspace's content.
-5. **Tooling not under `crates/`.** Issues in example code, experimental tooling under `research/`, CI helper scripts, or design-document artifacts. Issues in the production crates (`mimir-core`, `mimir-cli`, `mimir-mcp`, `mimir-librarian`, `mimir-harness`) are in scope.
+5. **Tooling not under `crates/`.** Issues in example code, local scratch tooling, CI helper scripts, or design-document artifacts. Issues in the production crates (`mimir-core`, `mimir-cli`, `mimir-mcp`, `mimir-librarian`, `mimir-harness`) are in scope.
 6. **Social-engineering attacks** on the project owner or contributors.
 7. **Physical-access attacks** on the developer's machine.
 

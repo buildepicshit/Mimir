@@ -35,7 +35,7 @@
       "id": "GT01",
       "category": "project_state",
       "text": "The transparent harness entry point is `mimir <agent> [agent args...]`; recovery should preserve the native agent UI while adding Mimir setup, rehydration, and capture.",
-      "source_refs": ["AGENTS.md", "docs/planning/2026-04-24-transparent-agent-harness.md"],
+      "source_refs": ["AGENTS.md", ".planning/planning/2026-04-24-transparent-agent-harness.md"],
       "auto_fail_if_wrong": false
     },
     {
@@ -49,7 +49,7 @@
       "id": "GT03",
       "category": "load_bearing_decision",
       "text": "Remote pull is always explicit; auto-push is allowed only after capture and librarian handoff when the operator opts in.",
-      "source_refs": ["crates/mimir-harness/README.md", "docs/planning/2026-04-24-transparent-agent-harness.md"],
+      "source_refs": ["crates/mimir-harness/README.md", ".planning/planning/2026-04-24-transparent-agent-harness.md"],
       "auto_fail_if_wrong": true
     },
     {
@@ -70,14 +70,14 @@
       "id": "GT06",
       "category": "load_bearing_decision",
       "text": "Restore drills are explicit and destructive only after opt-in; dry-run planning precedes deleting local state, pulling, verifying, and sanity-querying the restored log.",
-      "source_refs": ["crates/mimir-harness/README.md", "docs/planning/2026-04-24-transparent-agent-harness.md"],
+      "source_refs": ["crates/mimir-harness/README.md", ".planning/planning/2026-04-24-transparent-agent-harness.md"],
       "auto_fail_if_wrong": true
     },
     {
       "id": "GT07",
       "category": "recent_feedback_open_work",
       "text": "Service remotes currently expose only a dry-run adapter contract; real service push and pull are not implemented.",
-      "source_refs": ["crates/mimir-harness/README.md", "docs/planning/2026-04-24-transparent-agent-harness.md"],
+      "source_refs": ["crates/mimir-harness/README.md", ".planning/planning/2026-04-24-transparent-agent-harness.md"],
       "auto_fail_if_wrong": false
     },
     {

@@ -20,7 +20,7 @@
 > - If CI is currently disabled (`gh api /repos/buildepicshit/Mimir/actions/permissions` returns `enabled: false`), do not re-enable without asking. The owner-approved exception was 2026-04-27 after adding more Actions usage.
 > - Dependabot is set to **monthly** cadence (not weekly) and groups all non-major updates into one PR per ecosystem per cycle, for the same quota reason.
 
-> **Naming history.** Public name `Mimir` (Norse: Mímir, the wise being whose preserved head Odin consulted for counsel). Pre-cutover codename was `engram`; the Mimir cutover happened 2026-04-20 (see [`docs/planning/2026-04-19-roadmap-to-prime-time.md` § Naming + cutover history](docs/planning/2026-04-19-roadmap-to-prime-time.md#naming--cutover-history)). Pre-cutover history lives in the archived `buildepicshit/Engram` repo; this repo's git history starts at the cutover commit. Use `mimir-*` everywhere in new code, prose, env vars, and tool names.
+> **Naming history.** Public name `Mimir` (Norse: Mímir, the wise being whose preserved head Odin consulted for counsel). Pre-cutover codename was `engram`; the Mimir cutover happened 2026-04-20 (see [`.planning/planning/2026-04-19-roadmap-to-prime-time.md` § Naming + cutover history](.planning/planning/2026-04-19-roadmap-to-prime-time.md#naming--cutover-history)). Pre-cutover history lives in the archived `buildepicshit/Engram` repo; this repo's git history starts at the cutover commit. Use `mimir-*` everywhere in new code, prose, env vars, and tool names.
 
 ## What Mimir Is
 
@@ -124,9 +124,10 @@ Mimir is a [BES Studios](https://github.com/buildepicshit) project. Sibling flag
 | Architectural invariants | this file |
 | Engineering principles & tooling policy | [`PRINCIPLES.md`](PRINCIPLES.md) |
 | Design specs | [`docs/concepts/`](docs/concepts/) — 14 authoritative implementation specs plus draft [`scope-model.md`](docs/concepts/scope-model.md) and [`consensus-quorum.md`](docs/concepts/consensus-quorum.md) |
-| Multi-agent mandate | [`docs/concepts/scope-model.md`](docs/concepts/scope-model.md), [`docs/concepts/consensus-quorum.md`](docs/concepts/consensus-quorum.md), and [`docs/planning/2026-04-24-multi-agent-memory-control-plane.md`](docs/planning/2026-04-24-multi-agent-memory-control-plane.md) |
-| Transparent agent harness | [`docs/planning/2026-04-24-transparent-agent-harness.md`](docs/planning/2026-04-24-transparent-agent-harness.md) |
+| Multi-agent mandate | [`docs/concepts/scope-model.md`](docs/concepts/scope-model.md) and [`docs/concepts/consensus-quorum.md`](docs/concepts/consensus-quorum.md) |
+| Transparent agent harness | [`README.md`](README.md#running-mimir) and [`docs/first-run.md`](docs/first-run.md) |
 | Observability schema | [`docs/observability.md`](docs/observability.md) |
 | Prior art attribution | [`docs/attribution.md`](docs/attribution.md) — primary-source verified |
-| Roadmap to v1.0 / public launch | [`docs/planning/2026-04-19-roadmap-to-prime-time.md`](docs/planning/2026-04-19-roadmap-to-prime-time.md) |
+| Roadmap to v1.0 / public launch | [`STATUS.md`](STATUS.md), [`docs/launch-readiness.md`](docs/launch-readiness.md), and [`docs/launch-posting-plan.md`](docs/launch-posting-plan.md) |
 | Experimental measurement | `benchmarks/recovery/` for public benchmark assets; ignored local scratch stays out of the public tree |
+| Historical planning archive | [`.planning/planning/`](.planning/planning/) |

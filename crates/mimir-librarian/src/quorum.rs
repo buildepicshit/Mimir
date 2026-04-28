@@ -698,7 +698,9 @@ mod tests {
             supporting_points: vec!["Launch/capture stay transparent.".to_string()],
             dissenting_points: vec!["Operator may forget to push.".to_string()],
             unresolved_questions: vec!["Service adapter protocol remains open.".to_string()],
-            evidence_used: vec!["docs/planning/2026-04-24-transparent-agent-harness.md".to_string()],
+            evidence_used: vec![
+                ".planning/planning/2026-04-24-transparent-agent-harness.md".to_string()
+            ],
             participant_votes: vec![
                 ParticipantVote {
                     participant_id: "claude".to_string(),

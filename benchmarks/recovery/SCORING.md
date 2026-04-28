@@ -1,6 +1,6 @@
 # Recovery benchmark — scoring rubric
 
-Five metrics, scored per baseline per scenario. Rubric granularity is where the real design risk lives — the metrics themselves come from [`docs/planning/2026-04-20-mission-scope-and-recovery-benchmark.md`](../../docs/planning/2026-04-20-mission-scope-and-recovery-benchmark.md) § 8, but how we score them is a methodology choice that shapes the go/no-go call.
+Five metrics, scored per baseline per scenario. Rubric granularity is where the real design risk lives: how we score recovery behavior shapes the go/no-go call.
 
 ## Metric 1 — Time to productive state
 
