@@ -2344,7 +2344,7 @@ fn render_operator_status_falls_back_to_env_when_cwd_has_no_config(
     let actual_config_path = status_value(&output, "config_path")
         .map(normalize_status_path_text)
         .ok_or("status output should include config_path")?;
-    let env_path = normalized_expected_status_path(&env_config);
+    let env_path = normalize_status_path_text(&env_config.display().to_string());
 
     assert_eq!(
         actual_config_path, env_path,
