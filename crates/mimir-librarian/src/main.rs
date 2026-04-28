@@ -5570,6 +5570,182 @@ mod tests {
         }
     }
 
+    fn seed_completed_independent_pilot_artifacts(
+        plan: &QuorumPilotPlan,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let quorum_dir = std::path::Path::new(&plan.quorum_dir);
+        let out_dir = std::path::Path::new(&plan.out_dir);
+        let drafts_dir = std::path::Path::new(&plan.drafts_dir);
+        seed_independent_round_artifacts(plan, quorum_dir, out_dir)?;
+        let synthesis_status_path = seed_synthesis_artifacts(plan, quorum_dir, out_dir)?;
+        quorum_from_args(
+            &[
+                "accept-synthesis".to_string(),
+                "--quorum-dir".to_string(),
+                plan.quorum_dir.clone(),
+                "--episode-id".to_string(),
+                plan.episode_id.clone(),
+                "--status-file".to_string(),
+                synthesis_status_path,
+            ],
+            SystemTime::UNIX_EPOCH,
+        )?;
+        quorum_from_args(
+            &recorded_fixture_submit_args(quorum_dir, drafts_dir),
+            SystemTime::UNIX_EPOCH,
+        )?;
+        Ok(())
+    }
+
+    fn seed_independent_round_artifacts(
+        plan: &QuorumPilotPlan,
+        quorum_dir: &std::path::Path,
+        out_dir: &std::path::Path,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let round = QuorumRound::Independent;
+        let mut statuses = Vec::with_capacity(plan.participants.len());
+
+        for participant in &plan.participants {
+            let adapter_plan = build_quorum_adapter_plan(&QuorumAdapterPlanArgs {
+                quorum_dir: quorum_dir.to_path_buf(),
+                episode_id: plan.episode_id.clone(),
+                participant_id: participant.id.clone(),
+                round,
+                adapter: participant.adapter.clone(),
+                out_dir: out_dir.to_path_buf(),
+                binary: Some("should-not-run".to_string()),
+                output_id: None,
+            })?;
+            let response = format!("Seeded {} independent response.", participant.id);
+            fs::write(&adapter_plan.response_path, response.as_bytes())?;
+            if adapter_plan.stdout_capture_path != adapter_plan.response_path {
+                fs::write(&adapter_plan.stdout_capture_path, [])?;
+            }
+            fs::write(&adapter_plan.stderr_capture_path, [])?;
+            let response_bytes = u64::try_from(response.len())?;
+            let stdout_bytes = if adapter_plan.stdout_capture_path == adapter_plan.response_path {
+                response_bytes
+            } else {
+                0
+            };
+            statuses.push(QuorumAdapterRunStatus {
+                schema_version: QUORUM_SCHEMA_VERSION,
+                adapter: adapter_plan.adapter,
+                episode_id: adapter_plan.episode_id,
+                participant_id: adapter_plan.participant_id,
+                round: adapter_plan.round,
+                status_path: adapter_plan.status_path,
+                request_path: adapter_plan.request_path,
+                prompt_path: adapter_plan.prompt_path,
+                response_path: adapter_plan.response_path,
+                stdout_capture_path: adapter_plan.stdout_capture_path,
+                stderr_capture_path: adapter_plan.stderr_capture_path,
+                success: true,
+                timed_out: false,
+                exit_code: Some(0),
+                duration_ms: 0,
+                response_bytes,
+                stdout_bytes,
+                stderr_bytes: 0,
+                append_output_argv: adapter_plan.append_output_argv,
+            });
+        }
+
+        let round_status_path = adapter_round_status_path(out_dir, &plan.episode_id, round);
+        let round_run = QuorumAdapterRoundRun {
+            schema_version: QUORUM_SCHEMA_VERSION,
+            episode_id: plan.episode_id.clone(),
+            round: quorum_round_name(round).to_string(),
+            status_path: round_status_path.display().to_string(),
+            success: true,
+            completed: statuses.len(),
+            failed: 0,
+            timed_out: 0,
+            statuses,
+        };
+        write_adapter_round_status(&round_run)?;
+        quorum_from_args(
+            &[
+                "append-status-output".to_string(),
+                "--status-file".to_string(),
+                round_run.status_path.clone(),
+            ],
+            SystemTime::UNIX_EPOCH,
+        )?;
+        Ok(())
+    }
+
+    fn seed_synthesis_artifacts(
+        plan: &QuorumPilotPlan,
+        quorum_dir: &std::path::Path,
+        out_dir: &std::path::Path,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let synthesis_plan = build_quorum_synthesis_plan(&QuorumSynthesisPlanArgs {
+            quorum_dir: quorum_dir.to_path_buf(),
+            episode_id: plan.episode_id.clone(),
+            adapter: plan.synthesizer_adapter.clone(),
+            out_dir: out_dir.to_path_buf(),
+            binary: Some("should-not-run".to_string()),
+        })?;
+        let participant_votes = plan
+            .participants
+            .iter()
+            .map(|participant| {
+                serde_json::json!({
+                    "participant_id": participant.id,
+                    "vote": "agree",
+                    "confidence": 0.82,
+                    "rationale": "Seeded completed pilot artifact",
+                })
+            })
+            .collect::<Vec<_>>();
+        let proposed = serde_json::json!({
+            "schema_version": QUORUM_SCHEMA_VERSION,
+            "episode_id": plan.episode_id,
+            "recommendation": "Rerun complete manifests by skipping completed gates.",
+            "decision_status": "recommend",
+            "consensus_level": "strong_majority",
+            "confidence": 0.84,
+            "supporting_points": ["The completed artifacts satisfy every pilot gate."],
+            "dissenting_points": [],
+            "unresolved_questions": [],
+            "evidence_used": [],
+            "participant_votes": participant_votes,
+            "proposed_memory_drafts": [
+                "Pilot manifest reruns should skip gates that already have complete recorded artifacts."
+            ],
+        });
+        let proposed_bytes = serde_json::to_vec_pretty(&proposed)?;
+        fs::write(&synthesis_plan.result_path, &proposed_bytes)?;
+        fs::write(&synthesis_plan.stdout_capture_path, [])?;
+        fs::write(&synthesis_plan.stderr_capture_path, [])?;
+        let synthesis_status = QuorumSynthesisRunStatus {
+            schema_version: QUORUM_SCHEMA_VERSION,
+            adapter: synthesis_plan.adapter,
+            episode_id: synthesis_plan.episode_id,
+            status_path: synthesis_plan.status_path,
+            transcript_path: synthesis_plan.transcript_path,
+            prompt_path: synthesis_plan.prompt_path,
+            result_path: synthesis_plan.result_path,
+            stdout_capture_path: synthesis_plan.stdout_capture_path,
+            stderr_capture_path: synthesis_plan.stderr_capture_path,
+            success: true,
+            process_status: Some(QuorumProcessStatus::Succeeded),
+            timed_out: false,
+            exit_code: Some(0),
+            duration_ms: 0,
+            result_valid: true,
+            validation_error: None,
+            result_bytes: u64::try_from(proposed_bytes.len())?,
+            stdout_bytes: 0,
+            stderr_bytes: 0,
+            accept_synthesis_argv: synthesis_plan.accept_synthesis_argv,
+        };
+        let status_path = synthesis_status.status_path.clone();
+        write_synthesis_run_status(&synthesis_status)?;
+        Ok(status_path)
+    }
+
     #[test]
     fn quorum_recorded_fixture_smoke_test_runs_to_pending_draft(
     ) -> Result<(), Box<dyn std::error::Error>> {
@@ -6011,43 +6187,26 @@ mod tests {
         let quorum = tempfile::tempdir()?;
         let out = tempfile::tempdir()?;
         let drafts = tempfile::tempdir()?;
-        let (_claude_dir, claude_shim) = make_quorum_shim(
-            "claude-pilot-run-rerun-shim",
-            "#!/bin/sh\ncat >/dev/null\nprintf 'Pilot rerun Claude response.'\n",
-        )?;
-        let (_codex_dir, codex_shim) = make_quorum_shim(
-            "codex-pilot-run-rerun-shim",
-            "#!/bin/sh\ncat >/dev/null\nprintf 'Pilot rerun Codex response.' > \"$3\"\n",
-        )?;
-        let (_synth_dir, synth_shim) = make_quorum_shim(
-            "codex-pilot-run-rerun-synth-shim",
-            "#!/bin/sh\ncat >/dev/null\nprintf '{\"schema_version\":1,\"episode_id\":\"qr-cli-007\",\"recommendation\":\"Rerun complete manifests by skipping completed gates.\",\"decision_status\":\"recommend\",\"consensus_level\":\"strong_majority\",\"confidence\":0.84,\"supporting_points\":[\"The first run completed every gate.\"],\"dissenting_points\":[],\"unresolved_questions\":[],\"evidence_used\":[],\"participant_votes\":[{\"participant_id\":\"claude\",\"vote\":\"agree\",\"confidence\":0.86,\"rationale\":\"Round output was recorded\"},{\"participant_id\":\"codex\",\"vote\":\"agree\",\"confidence\":0.82,\"rationale\":\"Rerun should not duplicate outputs\"}],\"proposed_memory_drafts\":[\"Pilot manifest reruns should skip gates that already have complete recorded artifacts.\"]}' > \"$3\"\n",
-        )?;
         quorum_from_args(
             &recorded_fixture_create_args(quorum.path()),
             SystemTime::UNIX_EPOCH,
         )?;
-        let plan = create_test_pilot_plan_with_runtime_binaries(
+        let plan = create_test_pilot_plan_with_args(
             quorum.path(),
             out.path(),
             drafts.path(),
-            &claude_shim,
-            &codex_shim,
-            &synth_shim,
-        )?;
-
-        let first = quorum_from_args(
-            &[
-                "pilot-run".to_string(),
-                "--manifest-file".to_string(),
-                plan.manifest_path.clone(),
+            "independent",
+            "codex",
+            vec![
+                "--adapter-binary".to_string(),
+                "claude=should-not-run-claude".to_string(),
+                "--adapter-binary".to_string(),
+                "codex=should-not-run-codex".to_string(),
+                "--synthesizer-binary".to_string(),
+                "should-not-run-synthesizer".to_string(),
             ],
-            SystemTime::UNIX_EPOCH,
         )?;
-        assert!(matches!(
-            first,
-            QuorumCliOutcome::PilotRun { ref run } if run.success
-        ));
+        seed_completed_independent_pilot_artifacts(&plan)?;
 
         let second = quorum_from_args(
             &[
