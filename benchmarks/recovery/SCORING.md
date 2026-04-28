@@ -74,7 +74,7 @@ greater than zero for a completed score.
 
 ## Scorecard template
 
-Copy into `research/recovery-benchmark/results/<scenario-id>/scorecard.md`:
+Copy into `benchmarks/recovery/results/<scenario-id>/scorecard.md`:
 
 ```markdown
 # Scenario <id> — scorecard

@@ -5,7 +5,7 @@ Cargo.lock.bak
 *.rs.bk
 *.pdb
 
-# ----- Python environment (research tooling only) -----
+# ----- Python environment / local tooling -----
 .venv/
 venv/
 __pycache__/
@@ -16,27 +16,14 @@ __pycache__/
 .ruff_cache/
 .mypy_cache/
 
-# ----- Research & experimental tooling (gitignored until promoted) -----
+# ----- Research & experimental tooling -----
 #
-# Default: everything under `research/` is gitignored. Exception below
-# carves out `research/llm-fluency/` — the Phase 3.2 benchmark apparatus
-# is load-bearing for the wire-surface existential gate, so the corpus
-# + harness are tracked and reviewable *before* any run. Run outputs
-# (reproducible from the committed apparatus) stay gitignored.
-#
-# Pattern: `research/*` (not `research/`) keeps the directory itself
-# traversable so `!research/llm-fluency` can take effect. Git cannot
-# re-include a file whose parent directory is excluded — see git-scm
-# "PATTERN FORMAT" docs.
-research/*
-!research/llm-fluency
-!research/recovery-benchmark
-!research/librarian
-research/llm-fluency/results/
-research/llm-fluency/*.log
-research/recovery-benchmark/results/
-research/librarian/results/
+# Public benchmark assets live under `benchmarks/`. Scratch research,
+# local experiments, and generated benchmark outputs stay out of git
+# until deliberately promoted into docs or benchmarks.
+research/
 experiments/
+benchmarks/**/results/
 
 # ----- Fuzz / coverage runtime artefacts (never committed) -----
 fuzz/artifacts/

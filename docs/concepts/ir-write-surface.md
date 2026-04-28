@@ -2,7 +2,7 @@
 
 > **Status: authoritative — graduated 2026-04-17; criterion #4 closed 2026-04-19.** All cited sources verified (see `docs/attribution.md`). Grammar implemented by `mimir_core::lex` (12 token classes, typed `LexError`) + `mimir_core::parse` (twelve top-level forms including `episode` and the four `pin` / `unpin` / `authoritative_set` / `authoritative_clear` flag forms, `UnboundForm` AST, typed `ParseError`). Tests cover every form and every error variant. Criterion #4 (no-panic-on-malformed-input) is met by the `fuzz/` cargo-fuzz targets (`fuzz_lex`, `fuzz_parse`) plus the totality properties `lex_is_total_over_random_utf8` / `parse_is_total_over_random_utf8` in `crates/mimir_core/tests/properties.rs` that run in CI on every push. See [#33](https://github.com/buildepicshit/Mimir/issues/33) for the cargo-fuzz harness details.
 
-This specification defines the formal grammar of the agent → librarian write surface. The write surface is a Lisp S-expression dialect chosen in the tokenizer bake-off (see `research/bake-off/FINDINGS.md`). Every write, read query, and symbol-table operation an agent emits is a well-formed expression in this grammar.
+This specification defines the formal grammar of the agent → librarian write surface. The write surface is a Lisp S-expression dialect chosen after tokenizer bake-off measurements. Every write, read query, and symbol-table operation an agent emits is a well-formed expression in this grammar.
 
 ## 1. Scope
 
@@ -45,7 +45,7 @@ The write-surface grammar is:
 - **Fail-fast.** Malformed input produces a typed `ParseError::*` at the first violation. No partial recovery, no best-effort reconstruction. Agents retry with a corrected emission.
 - **Compile-time-checkable in Rust.** The parser's output is a typed AST matching `memory-type-taxonomy.md` enum variants. A parse success means a type-correct AST; the binder further validates against workspace state.
 
-The write surface is Lisp S-expressions because the tokenizer bake-off established that the Lisp family sits in the token-cheap cluster (`research/bake-off/FINDINGS.md`), parens give structural invariants for deterministic parse-error localization, leading-opcode dispatch is trivial, and LLM emission fluency in Lisp-family syntaxes is high.
+The write surface is Lisp S-expressions because tokenizer bake-off measurements placed the Lisp family in the token-cheap cluster, parens give structural invariants for deterministic parse-error localization, leading-opcode dispatch is trivial, and LLM emission fluency in Lisp-family syntaxes is high.
 
 ## 3. Lexical tokens
 

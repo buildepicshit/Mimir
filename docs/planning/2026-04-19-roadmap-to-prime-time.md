@@ -3,7 +3,7 @@
 > **Document type:** Planning — phased path from "feature-complete pre-1.0" to "publicly listed Rolls Royce product."
 > **Last updated:** 2026-04-19
 > **Status:** v1, locked decisions; phases sequenced for solo execution.
-> **Source:** the v1.1 fresh assessment in the parent workspace at [`../../../analysis/reports/Mimir-analysis.md`](../../../analysis/reports/Mimir-analysis.md) and the buildable-backlog table in [`runs/Engram/2026-04-19-T2040/09-rolls-royce-gap-analysis.md`](../../../analysis/runs/Engram/2026-04-19-T2040/09-rolls-royce-gap-analysis.md) (pre-cutover Engram run preserved for provenance; the post-cutover re-audit lives at [`runs/Mimir/2026-04-20-T1430/`](../../../analysis/runs/Mimir/2026-04-20-T1430/)).
+> **Source:** historical pre-public engineering assessments from the parent workspace. The public repo keeps this roadmap for provenance, but the assessment scratch files are not shipped here.
 > **Cross-link:** the workspace-level master plan lives at [`../../../analysis/plans/2026-04-19-engram-to-prime-time.md`](../../../analysis/plans/2026-04-19-engram-to-prime-time.md). This file is the in-repo authoritative copy.
 
 ## Purpose
@@ -29,7 +29,7 @@ Four Day-1 decisions; revisit only if a phase surfaces blocking evidence:
 |---|---|---|---|
 | `engram` | mbednarek360 (gitlab) | Backup version-control system (off-domain) | Established, 57k downloads |
 | `engram-core` (≡ `engram_core` for cargo lookup) | limaronaldo | "AI Memory Infrastructure — Persistent memory for AI agents with semantic search" | Active, 11 versions, latest 2026-03-19 |
-| `engram-cli` | nexusentis (`engram.nexusentis.ie/research/`) | "CLI for the Engram AI agent memory system" | Active, 4 versions, latest 2026-03-08 |
+| `engram-cli` | nexusentis | "CLI for the Engram AI agent memory system" | Active, 4 versions, latest 2026-03-08 |
 | `engram-mcp` | edg-l | "MCP server for AI agent persistent memory with SQLite and local embeddings" | Active, 4 versions, latest 2026-03-23 — directly occupied our planned Phase 2 product surface |
 
 Three different teams shipping "engram"-branded agent-memory products in the past six months. The chosen replacement: **Mimir** (Norse: Mímir, the wise being whose preserved head Odin consulted for counsel). Verified free 2026-04-19 and re-verified 2026-04-20: `mimir-core`, `mimir-cli`, `mimir-mcp`, `mimir-store`, `mimirdb`. The bare `mimir` is taken by an abandoned 2018 Oracle DB binding (off-domain, not blocking).
@@ -225,7 +225,7 @@ Add `crates/mimir_core/tests/doc_drift_tests.rs`:
 - 100-prompt corpus across 4 task shapes: `(epi ...)` (×25), `(sem ...)` (×25), queries (×25), `(pro ...)` (×25).
 - Run each through Claude (current default) ×3 trials = 300 attempts.
 - Measure: parse-success rate, error distributions, mean tokens per fact.
-- Document in `docs/research/2026-MM-DD-llm-fluency-benchmark.md`.
+- Document in a dated benchmark report after the run.
 - **Exit gate: >98% parse-success rate.** If <98%: stop, course-correct the wire surface, re-run.
 
 ### 3.3 — First public-test pass (Days 19–21)
@@ -398,6 +398,6 @@ Before starting each phase, gate on the previous phase's exit criteria. Prematur
 
 | Version | Date | Notes |
 |---|---|---|
-| v1 | 2026-04-19 | Initial draft after the v1.1 fresh assessment landed at `analysis/reports/Mimir-analysis.md`. Sequenced for solo execution; 6–9 weeks wall time. |
+| v1 | 2026-04-19 | Initial draft after the v1.1 fresh assessment. Sequenced for solo execution; 6–9 weeks wall time. |
 
 > **How to use this plan:** check off deliverables as PRs merge. Update phase exit criteria with actual evidence (PR links, test counts, CI runs). When a decision checkpoint says "no," document why and what changed. This plan is a working document, not a contract — but the sequencing is real, and the gate criteria are load-bearing.

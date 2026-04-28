@@ -32,8 +32,8 @@ from pathlib import Path
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parent
-DEFAULT_SCENARIOS_DIR = REPO_ROOT / "research" / "recovery-benchmark" / "scenarios"
-RESULTS_ROOT = REPO_ROOT / "research" / "recovery-benchmark" / "results"
+DEFAULT_SCENARIOS_DIR = REPO_ROOT / "benchmarks" / "recovery" / "scenarios"
+RESULTS_ROOT = REPO_ROOT / "benchmarks" / "recovery" / "results"
 
 
 class BenchError(Exception):

@@ -30,7 +30,7 @@ This is **Category 1** of the 2026-04-21 Rolls Royce engineering plan. See [`doc
 
 Confirmed in the Category 1 design conversation; each of these shapes the skeleton:
 
-- **Language:** Rust crate, not Python. Matches workspace conventions, typed errors, observability. The earlier Python prototype is retired; historical findings remain under `research/librarian/`.
+- **Language:** Rust crate, not Python. Matches workspace conventions, typed errors, observability. The earlier Python prototype is retired and is no longer shipped in the public tree.
 - **LLM invocation:** `claude -p` subprocess from Rust, wrapped behind a `LlmInvoker` trait so tests can mock. No direct Anthropic SDK dependency; `--bare` not used (OAuth via the operator's existing `claude` auth).
 - **Pre-emit validation:** in-process via `mimir_core::Pipeline::compile_batch` on a scratch `Pipeline` instance. Zero subprocess overhead; full typed errors.
 - **Supersession-conflict resolution:** skip-with-warning by default (D.1); operator-review mode via `--review-conflicts` flag (D.3). "Adjust valid_at" (D.2) was rejected as intent-shaping-by-stealth.
@@ -60,7 +60,7 @@ The full acceptance criteria for Category 1 ship across follow-up PRs. Each is a
 - [x] PR: dedup expansion — configurable valid-at window (initially same-day) for otherwise-identical Semantic and Inferential records.
 - [x] PR: scheduling — `run` one-shot and polling `watch` modes; systemd timer + cron recipe documented.
 - [x] PR: observability — runner and processor spans/events per `docs/observability.md`, with retry/error/record metrics and no user prose in logs.
-- [x] PR: retire the Python prototype once this crate reaches feature parity; delete `research/librarian/run_librarian.py`.
+- [x] PR: retire the Python prototype once this crate reaches feature parity.
 - [x] PR: workspace write lock — shared `mimir_core` lockfile guard prevents concurrent `mimir-mcp` and `mimir-librarian` writers from opening the same canonical log.
 - [x] PR: Copilot session-store adapter — read-only SQLite recall with schema checks, fixture DB tests, repository scoping where detectable, and optional checkpoint draft submission through `copilot_session_store` provenance.
 

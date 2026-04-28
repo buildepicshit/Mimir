@@ -63,28 +63,28 @@
       "id": "GT05",
       "category": "operator_profile",
       "text": "Fedora 43 tooling had a known ld.bfd issue on large Rust workspaces, with mold used as the practical linker path.",
-      "source_refs": ["research/recovery-benchmark/scenarios/01-example-session-context-loss.md"],
+      "source_refs": ["benchmarks/recovery/scenarios/01-example-session-context-loss.md"],
       "auto_fail_if_wrong": false
     },
     {
       "id": "GT06",
       "category": "project_state",
       "text": "Main was at commit 6e6bcd6 after the 2026-04-20 merge wave.",
-      "source_refs": ["git log", "research/recovery-benchmark/scenarios/01-example-session-context-loss.md"],
+      "source_refs": ["git log", "benchmarks/recovery/scenarios/01-example-session-context-loss.md"],
       "auto_fail_if_wrong": false
     },
     {
       "id": "GT07",
       "category": "project_state",
       "text": "The workspace had 463 tests passing at that point in the historical scenario.",
-      "source_refs": ["STATUS.md", "research/recovery-benchmark/scenarios/01-example-session-context-loss.md"],
+      "source_refs": ["STATUS.md", "benchmarks/recovery/scenarios/01-example-session-context-loss.md"],
       "auto_fail_if_wrong": false
     },
     {
       "id": "GT08",
       "category": "project_state",
       "text": "GitHub Actions quota was exhausted as of 2026-04-20; recent CI failures in about two seconds with empty steps arrays were the quota fingerprint, not a workflow config bug.",
-      "source_refs": ["AGENTS.md", "research/recovery-benchmark/scenarios/01-example-session-context-loss.md"],
+      "source_refs": ["AGENTS.md", "benchmarks/recovery/scenarios/01-example-session-context-loss.md"],
       "auto_fail_if_wrong": false
     },
     {
@@ -140,14 +140,14 @@
       "id": "GT16",
       "category": "recent_feedback_open_work",
       "text": "Two CHANGELOG conflicts were resolved during the 2026-04-20 merge wave by concatenating both Added sections without dropping content.",
-      "source_refs": ["research/recovery-benchmark/scenarios/01-example-session-context-loss.md"],
+      "source_refs": ["benchmarks/recovery/scenarios/01-example-session-context-loss.md"],
       "auto_fail_if_wrong": false
     },
     {
       "id": "GT17",
       "category": "recent_feedback_open_work",
       "text": "Four memory files were saved during the session and one was updated with the CI quota diagnostic fingerprint.",
-      "source_refs": ["research/recovery-benchmark/scenarios/01-example-session-context-loss.md"],
+      "source_refs": ["benchmarks/recovery/scenarios/01-example-session-context-loss.md"],
       "auto_fail_if_wrong": false
     },
     {
@@ -161,14 +161,14 @@
       "id": "GT19",
       "category": "recent_feedback_open_work",
       "text": "Benchmark A's scaffold was verified ready: the corpus parsed 100/100 via verify_corpus.py on 2026-04-20.",
-      "source_refs": ["docs/research/2026-04-20-llm-fluency-cc-baseline.md", "research/llm-fluency/verify_corpus.py"],
+      "source_refs": ["docs/planning/2026-04-20-delivery-plan.md"],
       "auto_fail_if_wrong": false
     },
     {
       "id": "GT20",
       "category": "recent_feedback_open_work",
       "text": "There is no production Anthropic API dependency in Mimir; the Phase 3.2 benchmark used the API only as a measurement instrument.",
-      "source_refs": ["docs/planning/2026-04-20-mission-scope-and-recovery-benchmark.md", "docs/research/2026-04-20-llm-fluency-cc-baseline.md"],
+      "source_refs": ["docs/planning/2026-04-20-mission-scope-and-recovery-benchmark.md", "docs/planning/2026-04-20-delivery-plan.md"],
       "auto_fail_if_wrong": false
     }
   ],

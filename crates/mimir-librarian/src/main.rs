@@ -20,9 +20,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
-use std::io::Write;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Command, ExitCode, Stdio};
+use std::process::{Child, Command, ExitCode, Stdio};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use mimir_core::ClockTime;
@@ -40,6 +40,8 @@ mod copilot_session_store;
 
 const DEFAULT_WATCH_POLL_SECS: u64 = 30;
 const DEFAULT_QUORUM_ADAPTER_TIMEOUT_SECS: u64 = 300;
+#[cfg(unix)]
+const TEXT_FILE_BUSY_OS_ERROR: i32 = 26;
 
 const USAGE: &str = "\
 mimir-librarian — prose drafts → canonical log.
@@ -2905,6 +2907,29 @@ fn write_adapter_plan_files(
     Ok(())
 }
 
+fn spawn_with_transient_exec_retry(command: &mut Command) -> io::Result<Child> {
+    let mut attempts = 0_u32;
+    loop {
+        match command.spawn() {
+            Err(error) if is_transient_text_file_busy(&error) && attempts < 3 => {
+                attempts += 1;
+                std::thread::sleep(Duration::from_millis(10 * u64::from(attempts)));
+            }
+            result => return result,
+        }
+    }
+}
+
+#[cfg(unix)]
+fn is_transient_text_file_busy(error: &io::Error) -> bool {
+    error.raw_os_error() == Some(TEXT_FILE_BUSY_OS_ERROR)
+}
+
+#[cfg(not(unix))]
+fn is_transient_text_file_busy(_: &io::Error) -> bool {
+    false
+}
+
 fn execute_quorum_adapter_plan(
     plan: &QuorumAdapterPlan,
     timeout: Duration,
@@ -2926,7 +2951,7 @@ fn execute_quorum_adapter_plan(
         fs::File::create(&plan.stderr_capture_path).map_err(LibrarianError::from)?,
     ));
 
-    let mut child = command.spawn().map_err(LibrarianError::from)?;
+    let mut child = spawn_with_transient_exec_retry(&mut command).map_err(LibrarianError::from)?;
     let wait_result = child.wait_timeout(timeout);
     let (timed_out, exit_code, process_success) = match wait_result {
         Ok(Some(status)) => (false, status.code(), status.success()),
@@ -3548,7 +3573,7 @@ fn execute_quorum_synthesis_plan(
         fs::File::create(&plan.stderr_capture_path).map_err(LibrarianError::from)?,
     ));
 
-    let mut child = command.spawn().map_err(LibrarianError::from)?;
+    let mut child = spawn_with_transient_exec_retry(&mut command).map_err(LibrarianError::from)?;
     let wait_result = child.wait_timeout(timeout);
     let (timed_out, exit_code, process_success) = match wait_result {
         Ok(Some(status)) => (false, status.code(), status.success()),

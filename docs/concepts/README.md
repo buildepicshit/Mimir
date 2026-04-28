@@ -41,7 +41,7 @@ A previously-planned 15th spec (`multi-agent-coherence.md`) was deleted on 2026-
 
 If you're proposing a new architectural concern that doesn't fit an existing spec:
 
-1. Open it as a draft in chat or under `research/` (gitignored) until both graduation conditions above hold.
+1. Open it as a draft in chat or in an ignored local scratch area until both graduation conditions above hold.
 2. When ready, add a file to this directory with the `> **Status: draft|citation-verified|authoritative**` banner in its first paragraph (the drift gate at `crates/mimir_core/tests/doc_drift_tests.rs::status_banner_consistency` enforces the format).
 3. Cite primary sources; record citation verification in `../attribution.md`.
 4. Cross-link from `AGENTS.md` "Where to Look" table.

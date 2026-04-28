@@ -1,5 +1,0 @@
-{"shape": "sem", "prompt_en": "Dan lives in London.", "lisp": "(sem @dan @lives_in @london :src @profile :c 0.9 :v 2024-01-01)"}
-{"shape": "epi", "prompt_en": "A code deploy happened at 2024-03-15 14:00 UTC.", "lisp": "(epi @evt_fewshot_deploy @deployment (@agent) @production :at 2024-03-15T14:00:00Z :obs 2024-03-15T14:00:00Z :src @observation :c 1.0)"}
-{"shape": "pro", "prompt_en": "When a test fails, file a bug.", "lisp": "(pro @rule_fewshot_failbug \"test_fails\" \"file_bug\" :scp @mimir :src @policy :c 1.0)"}
-{"shape": "query", "prompt_en": "Find all procedural rules.", "lisp": "(query :kind pro)"}
-{"shape": "sem", "prompt_en": "The rate limit is 60 per minute.", "lisp": "(sem @api @rate_limit_per_minute 60 :src @policy :c 1.0 :v 2024-01-10)"}

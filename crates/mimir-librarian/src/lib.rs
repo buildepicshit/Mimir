@@ -46,8 +46,8 @@
 //! wired for runner and processor paths. Store commits acquire the
 //! shared `mimir_core::WorkspaceWriteLock`, so direct librarian runs
 //! and MCP write sessions exclude each other without introducing an
-//! MCP dependency. The earlier Python prototype is retired; historical
-//! findings remain under `research/librarian/`.
+//! MCP dependency. The earlier Python prototype is retired and is no
+//! longer shipped in the public tree.
 
 #![cfg_attr(not(test), forbid(unsafe_code))]
 

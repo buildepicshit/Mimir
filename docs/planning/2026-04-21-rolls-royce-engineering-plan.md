@@ -27,7 +27,7 @@ Each category is a self-contained workstream with defined acceptance criteria. T
 
 **What it is.** The `librarian` process that ingests prose drafts, sanitises them (separates observations from directives), structures them into canonical Mimir Lisp, and commits them to the canonical log. The retired Python prototype was a three-iteration proof-of-concept — it hit 100% parse on real drafts but could not commit arbitrary batches because it did not yet handle binder / semantic / emit constraints at commit time.
 
-> 2026-04-24 status note: the Rust `mimir-librarian` crate has replaced the Python prototype, and `research/librarian/run_librarian.py` has been deleted. Historical findings remain under `research/librarian/`. The librarian and MCP write surface now share `mimir_core::WorkspaceWriteLock`, an atomic `<canonical-log>.lock` guard that prevents concurrent canonical-log writers without adding an MCP dependency to the librarian crate.
+> 2026-04-24 status note: the Rust `mimir-librarian` crate has replaced the Python prototype, which is no longer shipped in the public tree. The librarian and MCP write surface now share `mimir_core::WorkspaceWriteLock`, an atomic `<canonical-log>.lock` guard that prevents concurrent canonical-log writers without adding an MCP dependency to the librarian crate.
 
 **Current state.**
 - Retired prototype findings record a `claude -p` harness with a 200-line system prompt covering parse syntax + three static binder/semantic constraints (source×memory-kind, symbol-kind first-use, confidence×source bound).
@@ -46,7 +46,7 @@ Each category is a self-contained workstream with defined acceptance criteria. T
 - **Lock discipline.** Two librarian instances cannot step on each other's drafts or commits. Shared workspace lock coordination against the Mimir log; draft-level locks for in-flight processing.
 - **Error taxonomy.** Typed error classes (`LibrarianError::ValidationFailed`, `::LeaseContest`, `::EmitRejected`, etc.) with documented operator-escalation rules.
 - **Tests.** Unit tests for retry logic, idempotency, and lock behaviour. Integration tests: prose draft in → canonical log out, end-to-end.
-- **Moved from `research/` to a real crate** (`mimir-librarian`) in the workspace once the above is met. Python prototype is retired or kept as a reference implementation only.
+- **Moved to a real crate** (`mimir-librarian`) in the workspace once the above is met. Python prototype is retired.
 
 **Effort estimate.** 1–2 weeks of focused engineering.
 
@@ -57,7 +57,7 @@ Each category is a self-contained workstream with defined acceptance criteria. T
 **What it is.** The defined input boundary: where prose memory drafts come from, how the librarian discovers them, how they flow through the system, and how their provenance is preserved.
 
 **Current state.**
-- Prototype reads from a hand-written JSONL file (`research/librarian/real_drafts.jsonl` — 9 drafts extracted from Claude auto-memory).
+- Prototype read from a hand-written JSONL file with 9 drafts extracted from Claude auto-memory.
 - No integration with Claude's auto-memory as a live source.
 - No explicit submit-via-MCP or submit-via-CLI path.
 - No retention / lifecycle management.
@@ -196,7 +196,7 @@ Each category is a self-contained workstream with defined acceptance criteria. T
 **What it is.** The scripted test runner that turns a pilot from "half a day of manual setup" into a one-command invocation. Scenarios are data, environments are built by the harness, metrics are aggregated automatically where possible and operator-graded where not.
 
 **Current state.**
-- Methodology + scoring rubric exist (`research/recovery-benchmark/README.md`, `SCORING.md`).
+- Methodology + scoring rubric exist (`benchmarks/recovery/README.md`, `SCORING.md`).
 - One worked example scenario (scenario 01, self-referential), now mirrored into structured JSON.
 - Scenario JSON is validated at load time for expected baselines, typed ground truth, typed staleness probes, and unique probe IDs.
 - `./bench recovery --list` and `./bench recovery --scenario <id> --dry-run` render deterministic scenario/run-plan data without launching agents.
@@ -238,7 +238,7 @@ Each category is a self-contained workstream with defined acceptance criteria. T
 
 - **Corpus target.** ≥100 prose drafts representing real operator memory content. Drawn from: current auto-memory (starting baseline), augmented with additional scenario-relevant drafts written by the operator.
 - **Scenario set.** 3–5 catastrophic-loss scenarios per the recovery-benchmark methodology, each with a defined ground-truth checklist (N items typed as operator-profile / project-state / decisions / feedback / open-work).
-- **Corpus lockdown.** Same discipline as the llm-fluency corpus — committed, version-locked, any change reviewed as a corpus-integrity event.
+- **Corpus lockdown.** Same discipline as the earlier parse-rate corpus — committed, version-locked, any change reviewed as a corpus-integrity event.
 - **Ground-truth checklists as data.** Structured format consumable by the harness scorer; per-item classification so automated scoring can handle what's scoreable.
 - **Distinct from training.** The librarian's few-shot examples are not drawn from the corpus; the cold-start Skill's priming does not leak ground-truth items. Corpus integrity for measurement.
 

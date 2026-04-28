@@ -214,8 +214,8 @@ class RecoveryBenchTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             scenario_path = (
                 REPO_ROOT
-                / "research"
-                / "recovery-benchmark"
+                / "benchmarks"
+                / "recovery"
                 / "scenarios"
                 / "01-example-session-context-loss.json"
             )
@@ -245,8 +245,8 @@ class RecoveryBenchTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             scenario_path = (
                 REPO_ROOT
-                / "research"
-                / "recovery-benchmark"
+                / "benchmarks"
+                / "recovery"
                 / "scenarios"
                 / "01-example-session-context-loss.json"
             )
@@ -291,7 +291,7 @@ class RecoveryBenchTests(unittest.TestCase):
             ["A", "B", "C", "D"],
         )
         self.assertIn(
-            "research/recovery-benchmark/results/01-example-session-context-loss/scorecard.md",
+            "benchmarks/recovery/results/01-example-session-context-loss/scorecard.md",
             payload["expected_artifacts"],
         )
 
