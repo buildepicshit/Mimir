@@ -138,8 +138,9 @@ After-capture librarian handoff is configured separately:
 ```toml
 [librarian]
 after_capture = "process" # off | defer | archive_raw | process
-llm_binary = "claude"
-llm_model = "claude-sonnet-4-6"
+adapter = "codex" # optional: claude | codex | copilot
+llm_binary = "codex"
+llm_model = "gpt-5.4"
 max_retries_per_record = 3
 llm_timeout_secs = 120
 processing_stale_secs = 3600
@@ -147,7 +148,7 @@ dedup_valid_at_window_secs = 86400
 review_conflicts = false
 ```
 
-`off` records only capture output. `defer` runs the librarian lifecycle safely without invoking an LLM, recovering stale `processing/` drafts and returning captured drafts to `pending/`. `process` is the rigorous LLM-backed default for repos that want structured post-session processing through `mimir-librarian`. `archive_raw` is a per-repo lightweight option that drains drafts without an LLM by committing raw pending-verification evidence plus provenance records through the normal append-only store. Archive mode is blocked before invocation when the draft directory or workspace log path is unavailable; process mode also requires the configured LLM binary. `after_capture`, `llm_binary`, and `llm_model` can be overridden per launch with `MIMIR_LIBRARIAN_AFTER_CAPTURE`, `MIMIR_LIBRARIAN_LLM_BINARY`, and `MIMIR_LIBRARIAN_LLM_MODEL`.
+`off` records only capture output. `defer` runs the librarian lifecycle safely without invoking an LLM, recovering stale `processing/` drafts and returning captured drafts to `pending/`. `process` is the rigorous LLM-backed default for repos that want structured post-session processing through `mimir-librarian`. `archive_raw` is a per-repo lightweight option that drains drafts without an LLM by committing raw pending-verification evidence plus provenance records through the normal append-only store. Archive mode is blocked before invocation when the draft directory or workspace log path is unavailable; process mode also requires the selected adapter binary. If `adapter` is omitted, process mode defaults to the active wrapped agent when it is `claude`, `codex`, or `copilot`, otherwise Claude. Copilot defaults to `gh copilot`; set `llm_binary` only when pinning a different executable. `after_capture`, `adapter`, `llm_binary`, and `llm_model` can be overridden per launch with `MIMIR_LIBRARIAN_AFTER_CAPTURE`, `MIMIR_LIBRARIAN_ADAPTER`, `MIMIR_LIBRARIAN_LLM_BINARY`, and `MIMIR_LIBRARIAN_LLM_MODEL`.
 
 Capsule rehydration is read-only. Missing canonical logs are reported as cold-start status instead of being created, and trailing bytes past the last committed checkpoint are ignored with a capsule warning rather than repaired by the harness.
 

@@ -27,12 +27,12 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use mimir_core::ClockTime;
 use mimir_librarian::{
-    run_once, ClaudeCliInvoker, ConsensusLevel, DecisionStatus, DedupPolicy,
-    DeferredDraftProcessor, Draft, DraftMetadata, DraftRunSummary, DraftSourceSurface, DraftStore,
-    LibrarianConfig, LibrarianError, ParticipantVote, QuorumAdapterRequest, QuorumEpisode,
-    QuorumEpisodeState, QuorumParticipant, QuorumParticipantOutput, QuorumResult, QuorumRound,
-    QuorumStore, RawArchiveDraftProcessor, RetryingDraftProcessor, SupersessionConflictPolicy,
-    VoteChoice, QUORUM_SCHEMA_VERSION,
+    run_once, ClaudeCliInvoker, CodexCliInvoker, ConsensusLevel, CopilotCliInvoker, DecisionStatus,
+    DedupPolicy, DeferredDraftProcessor, Draft, DraftMetadata, DraftRunSummary, DraftSourceSurface,
+    DraftStore, LibrarianConfig, LibrarianError, LlmAdapter, ParticipantVote, QuorumAdapterRequest,
+    QuorumEpisode, QuorumEpisodeState, QuorumParticipant, QuorumParticipantOutput, QuorumResult,
+    QuorumRound, QuorumStore, RawArchiveDraftProcessor, RetryingDraftProcessor,
+    SupersessionConflictPolicy, VoteChoice, QUORUM_SCHEMA_VERSION,
 };
 use wait_timeout::ChildExt as _;
 
@@ -56,6 +56,8 @@ Usage:
                               [--agent NAME] [--project NAME] [--operator NAME]
                               [--tag TAG]...
     mimir-librarian run      [--drafts-dir PATH] [--workspace PATH]
+                              [--adapter claude|codex|copilot]
+                              [--llm-binary PATH] [--llm-model MODEL]
                               [--stale-processing-secs N]
                               [--max-retries N] [--llm-timeout-secs N]
                               [--dedup-valid-at-window-secs N]
@@ -149,6 +151,7 @@ Usage:
 `submit` is wired and writes a v2 draft JSON envelope to `pending/`.
 `sweep` imports explicit file/directory paths as untrusted pending drafts.
 `run` is lifecycle-safe and validates LLM output with bounded retry.
+`--adapter` selects the LLM processing adapter for manual recovery runs.
 `--dedup-valid-at-window-secs` controls same-fact valid_at duplicate skipping.
 `--review-conflicts` writes supersession conflicts to `drafts/conflicts/` and quarantines them.
 `--archive-raw` deterministically commits raw drafts as pending-verification evidence without LLM work.
@@ -401,7 +404,24 @@ struct SweepDraftOutcome {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 struct RunOutcome {
     processor: &'static str,
+    adapter: &'static str,
     summary: DraftRunSummary,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RunMode {
+    Llm,
+    Defer,
+    ArchiveRaw,
+}
+
+#[derive(Debug)]
+struct ParsedRunArgs {
+    cfg: LibrarianConfig,
+    adapter: LlmAdapter,
+    llm_binary: Option<PathBuf>,
+    llm_model: Option<String>,
+    mode: RunMode,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -775,7 +795,51 @@ impl From<LibrarianError> for CliError {
 }
 
 fn run_from_args(args: &[String], now: SystemTime) -> Result<RunOutcome, CliError> {
+    let ParsedRunArgs {
+        cfg,
+        adapter,
+        llm_binary,
+        llm_model,
+        mode,
+    } = parse_run_args(args)?;
+    let store = DraftStore::new(&cfg.drafts_dir);
+
+    match mode {
+        RunMode::Defer => {
+            let mut processor = DeferredDraftProcessor;
+            let summary = run_once(&store, &mut processor, now, cfg.processing_stale_after)?;
+            Ok(RunOutcome {
+                processor: "deferred",
+                adapter: "defer",
+                summary,
+            })
+        }
+        RunMode::ArchiveRaw => {
+            let clock = clock_time_from_system_time(now)?;
+            let mut processor = RawArchiveDraftProcessor::new_at(clock, &cfg.workspace_log)?;
+            let summary = run_once(&store, &mut processor, now, cfg.processing_stale_after)?;
+            Ok(RunOutcome {
+                processor: "archive_raw",
+                adapter: "archive_raw",
+                summary,
+            })
+        }
+        RunMode::Llm => {
+            let summary = run_llm_adapter_once(&store, &cfg, adapter, llm_binary, llm_model, now)?;
+            Ok(RunOutcome {
+                processor: "retrying_llm",
+                adapter: adapter.as_str(),
+                summary,
+            })
+        }
+    }
+}
+
+fn parse_run_args(args: &[String]) -> Result<ParsedRunArgs, CliError> {
     let mut cfg = LibrarianConfig::default();
+    let mut adapter = LlmAdapter::Claude;
+    let mut llm_binary: Option<PathBuf> = None;
+    let mut llm_model: Option<String> = None;
     let mut defer = false;
     let mut archive_raw = false;
 
@@ -788,36 +852,34 @@ fn run_from_args(args: &[String], now: SystemTime) -> Result<RunOutcome, CliErro
             "--workspace" => {
                 cfg.workspace_log = take_value(args, &mut i, "--workspace")?.into();
             }
+            "--adapter" => {
+                let value = take_value(args, &mut i, "--adapter")?;
+                adapter = parse_librarian_adapter_arg(&value)?;
+            }
+            "--llm-binary" => {
+                llm_binary = Some(take_value(args, &mut i, "--llm-binary")?.into());
+            }
+            "--llm-model" => {
+                let value = take_value(args, &mut i, "--llm-model")?;
+                llm_model = Some(parse_llm_model_arg(value)?);
+            }
             "--stale-processing-secs" => {
                 let value = take_value(args, &mut i, "--stale-processing-secs")?;
-                let secs = value.parse::<u64>().map_err(|_| {
-                    CliError::Usage(format!(
-                        "--stale-processing-secs must be an integer: {value}"
-                    ))
-                })?;
-                cfg.processing_stale_after = Duration::from_secs(secs);
+                cfg.processing_stale_after =
+                    Duration::from_secs(parse_u64("--stale-processing-secs", &value)?);
             }
             "--max-retries" => {
                 let value = take_value(args, &mut i, "--max-retries")?;
-                cfg.max_retries_per_record = value.parse::<u32>().map_err(|_| {
-                    CliError::Usage(format!("--max-retries must be an integer: {value}"))
-                })?;
+                cfg.max_retries_per_record = parse_u32("--max-retries", &value)?;
             }
             "--llm-timeout-secs" => {
                 let value = take_value(args, &mut i, "--llm-timeout-secs")?;
-                let secs = value.parse::<u64>().map_err(|_| {
-                    CliError::Usage(format!("--llm-timeout-secs must be an integer: {value}"))
-                })?;
-                cfg.llm_timeout = Duration::from_secs(secs);
+                cfg.llm_timeout = Duration::from_secs(parse_u64("--llm-timeout-secs", &value)?);
             }
             "--dedup-valid-at-window-secs" => {
                 let value = take_value(args, &mut i, "--dedup-valid-at-window-secs")?;
-                let secs = value.parse::<u64>().map_err(|_| {
-                    CliError::Usage(format!(
-                        "--dedup-valid-at-window-secs must be an integer: {value}"
-                    ))
-                })?;
-                cfg.dedup_valid_at_window = Duration::from_secs(secs);
+                cfg.dedup_valid_at_window =
+                    Duration::from_secs(parse_u64("--dedup-valid-at-window-secs", &value)?);
             }
             "--defer" => {
                 defer = true;
@@ -835,32 +897,85 @@ fn run_from_args(args: &[String], now: SystemTime) -> Result<RunOutcome, CliErro
         i += 1;
     }
 
-    if defer && archive_raw {
+    Ok(ParsedRunArgs {
+        cfg,
+        adapter,
+        llm_binary,
+        llm_model,
+        mode: parse_run_mode(defer, archive_raw)?,
+    })
+}
+
+fn parse_librarian_adapter_arg(value: &str) -> Result<LlmAdapter, CliError> {
+    LlmAdapter::parse(value).ok_or_else(|| {
+        CliError::Usage(format!(
+            "--adapter must be one of claude, codex, or copilot: {value}"
+        ))
+    })
+}
+
+fn parse_llm_model_arg(value: String) -> Result<String, CliError> {
+    if value.trim().is_empty() {
         return Err(CliError::Usage(
-            "--archive-raw cannot be combined with --defer".to_string(),
+            "--llm-model must be a non-empty string".to_string(),
         ));
     }
+    Ok(value)
+}
 
-    let store = DraftStore::new(&cfg.drafts_dir);
-    if defer {
-        let mut processor = DeferredDraftProcessor;
-        let summary = run_once(&store, &mut processor, now, cfg.processing_stale_after)?;
-        return Ok(RunOutcome {
-            processor: "deferred",
-            summary,
-        });
+fn parse_run_mode(defer: bool, archive_raw: bool) -> Result<RunMode, CliError> {
+    match (defer, archive_raw) {
+        (true, true) => Err(CliError::Usage(
+            "--archive-raw cannot be combined with --defer".to_string(),
+        )),
+        (true, false) => Ok(RunMode::Defer),
+        (false, true) => Ok(RunMode::ArchiveRaw),
+        (false, false) => Ok(RunMode::Llm),
     }
-    if archive_raw {
-        let clock = clock_time_from_system_time(now)?;
-        let mut processor = RawArchiveDraftProcessor::new_at(clock, &cfg.workspace_log)?;
-        let summary = run_once(&store, &mut processor, now, cfg.processing_stale_after)?;
-        return Ok(RunOutcome {
-            processor: "archive_raw",
-            summary,
-        });
-    }
+}
 
-    let invoker = ClaudeCliInvoker::default().with_timeout(cfg.llm_timeout);
+fn run_llm_adapter_once(
+    store: &DraftStore,
+    cfg: &LibrarianConfig,
+    adapter: LlmAdapter,
+    llm_binary: Option<PathBuf>,
+    llm_model: Option<String>,
+    now: SystemTime,
+) -> Result<DraftRunSummary, CliError> {
+    match adapter {
+        LlmAdapter::Claude => {
+            let model =
+                llm_model.unwrap_or_else(|| ClaudeCliInvoker::default().model().to_string());
+            let binary = llm_binary.unwrap_or_else(|| PathBuf::from(adapter.default_binary()));
+            let invoker = ClaudeCliInvoker::new(model)
+                .with_binary_path(binary)
+                .with_timeout(cfg.llm_timeout);
+            let mut processor = configured_retrying_processor(invoker, cfg)?;
+            run_once(store, &mut processor, now, cfg.processing_stale_after).map_err(Into::into)
+        }
+        LlmAdapter::Codex => {
+            let binary = llm_binary.unwrap_or_else(|| PathBuf::from(adapter.default_binary()));
+            let invoker = CodexCliInvoker::new(llm_model)
+                .with_binary_path(binary)
+                .with_timeout(cfg.llm_timeout);
+            let mut processor = configured_retrying_processor(invoker, cfg)?;
+            run_once(store, &mut processor, now, cfg.processing_stale_after).map_err(Into::into)
+        }
+        LlmAdapter::Copilot => {
+            let binary = llm_binary.unwrap_or_else(|| PathBuf::from(adapter.default_binary()));
+            let invoker = CopilotCliInvoker::new(llm_model)
+                .with_binary_path(binary)
+                .with_timeout(cfg.llm_timeout);
+            let mut processor = configured_retrying_processor(invoker, cfg)?;
+            run_once(store, &mut processor, now, cfg.processing_stale_after).map_err(Into::into)
+        }
+    }
+}
+
+fn configured_retrying_processor<I: mimir_librarian::LlmInvoker>(
+    invoker: I,
+    cfg: &LibrarianConfig,
+) -> Result<RetryingDraftProcessor<I>, CliError> {
     let mut processor =
         RetryingDraftProcessor::new(invoker, cfg.max_retries_per_record, &cfg.workspace_log)?
             .with_dedup_policy(DedupPolicy {
@@ -871,11 +986,7 @@ fn run_from_args(args: &[String], now: SystemTime) -> Result<RunOutcome, CliErro
             dir: cfg.drafts_dir.join("conflicts"),
         });
     }
-    let summary = run_once(&store, &mut processor, now, cfg.processing_stale_after)?;
-    Ok(RunOutcome {
-        processor: "retrying_llm",
-        summary,
-    })
+    Ok(processor)
 }
 
 fn watch_from_args<F>(args: &[String], mut on_outcome: F) -> Result<WatchOutcome, CliError>
@@ -4642,6 +4753,12 @@ fn parse_u64(flag: &str, value: &str) -> Result<u64, CliError> {
         .map_err(|_| CliError::Usage(format!("{flag} must be an integer: {value}")))
 }
 
+fn parse_u32(flag: &str, value: &str) -> Result<u32, CliError> {
+    value
+        .parse::<u32>()
+        .map_err(|_| CliError::Usage(format!("{flag} must be an integer: {value}")))
+}
+
 fn parse_usize(flag: &str, value: &str) -> Result<usize, CliError> {
     value
         .parse::<usize>()
@@ -7936,6 +8053,59 @@ mod tests {
         assert_eq!(outcome.summary.pending_seen, 0);
         assert_eq!(outcome.summary.claimed, 0);
         assert_eq!(outcome.summary.deferred, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn run_from_args_selects_codex_adapter_without_implicit_claude(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let drafts = tempfile::tempdir()?;
+        let workspace = tempfile::tempdir()?;
+        let workspace_log = workspace.path().join("canonical.log");
+        let args = vec![
+            "--drafts-dir".to_string(),
+            drafts.path().display().to_string(),
+            "--workspace".to_string(),
+            workspace_log.display().to_string(),
+            "--adapter".to_string(),
+            "codex".to_string(),
+        ];
+
+        let outcome = match run_from_args(&args, SystemTime::UNIX_EPOCH) {
+            Ok(outcome) => outcome,
+            Err(err) => return Err(format!("run failed: {err:?}").into()),
+        };
+
+        assert_eq!(outcome.processor, "retrying_llm");
+        assert_eq!(outcome.adapter, "codex");
+        assert_eq!(outcome.summary.pending_seen, 0);
+        assert_eq!(outcome.summary.claimed, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn run_from_args_selects_copilot_adapter() -> Result<(), Box<dyn std::error::Error>> {
+        let drafts = tempfile::tempdir()?;
+        let workspace = tempfile::tempdir()?;
+        let workspace_log = workspace.path().join("canonical.log");
+        let args = vec![
+            "--drafts-dir".to_string(),
+            drafts.path().display().to_string(),
+            "--workspace".to_string(),
+            workspace_log.display().to_string(),
+            "--adapter".to_string(),
+            "copilot".to_string(),
+        ];
+
+        let outcome = match run_from_args(&args, SystemTime::UNIX_EPOCH) {
+            Ok(outcome) => outcome,
+            Err(err) => return Err(format!("run failed: {err:?}").into()),
+        };
+
+        assert_eq!(outcome.processor, "retrying_llm");
+        assert_eq!(outcome.adapter, "copilot");
+        assert_eq!(outcome.summary.pending_seen, 0);
+        assert_eq!(outcome.summary.claimed, 0);
         Ok(())
     }
 

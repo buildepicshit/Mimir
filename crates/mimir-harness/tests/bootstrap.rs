@@ -186,6 +186,48 @@ fn write_process_config(
     Ok(())
 }
 
+fn write_process_config_without_binary(
+    path: &Path,
+    data_root: &Path,
+    drafts_dir: &Path,
+    adapter: Option<&str>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| format!("config path has no parent: {}", path.display()))?;
+    fs::create_dir_all(parent)?;
+    let adapter_line = adapter
+        .map(|value| {
+            format!(
+                "             adapter = {value}\n",
+                value = toml_string(value)
+            )
+        })
+        .unwrap_or_default();
+    fs::write(
+        path,
+        format!(
+            "[storage]\n\
+             data_root = {}\n\
+             \n\
+             [drafts]\n\
+             dir = {}\n\
+             \n\
+             [librarian]\n\
+             after_capture = \"process\"\n\
+{}\
+             \n\
+             [identity]\n\
+             operator = \"hasnobeef\"\n\
+             organization = \"buildepicshit\"\n",
+            toml_path(data_root),
+            toml_path(drafts_dir),
+            adapter_line
+        ),
+    )?;
+    Ok(())
+}
+
 fn write_auto_push_process_config(
     path: &Path,
     data_root: &Path,
@@ -1538,6 +1580,129 @@ fn capture_session_drafts_writes_summary_for_nonfatal_capture_state(
     assert_eq!(summary_json["librarian_handoff"]["status"], "skipped");
     assert_eq!(summary_json["remote_backup"]["mode"], "off");
     assert_eq!(summary_json["remote_backup"]["status"], "skipped");
+    Ok(())
+}
+
+#[test]
+fn capture_summary_records_active_agent_and_default_processing_adapter(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let tmp = tempfile::tempdir()?;
+    let project = tmp.path().join("repo");
+    fs::create_dir_all(&project)?;
+    let config_path = project.join(".mimir/config.toml");
+    let data_root = tmp.path().join("mimir-data");
+    let drafts_dir = tmp.path().join("mimir-drafts");
+    write_process_config_without_binary(&config_path, &data_root, &drafts_dir, None)?;
+    let session_root = tmp.path().join("sessions");
+    let plan = prepare_launch_plan(
+        ["codex"],
+        "session-codex-default-adapter",
+        &project,
+        &env(&[("MIMIR_SESSION_DIR", &session_root)]),
+    )?;
+    let spec = plan.child_command_spec();
+    assert!(spec.env().contains(&("MIMIR_LIBRARIAN_ADAPTER", "codex")));
+    assert!(spec
+        .env()
+        .contains(&("MIMIR_LIBRARIAN_LLM_BINARY", "codex")));
+
+    let summary = capture_session_drafts(&plan, Some(0), UNIX_EPOCH)?;
+
+    assert_eq!(summary.active_agent, "codex");
+    assert_eq!(
+        summary.librarian_handoff.selected_adapter.as_deref(),
+        Some("codex")
+    );
+    let summary_path = plan
+        .capture_summary_path()
+        .ok_or("capture summary path must be set")?;
+    let summary_json: Value = serde_json::from_str(&fs::read_to_string(summary_path)?)?;
+    assert_eq!(summary_json["active_agent"], "codex");
+    assert_eq!(
+        summary_json["librarian_handoff"]["selected_adapter"],
+        "codex"
+    );
+    Ok(())
+}
+
+#[test]
+fn capture_summary_honors_explicit_processing_adapter_config(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let tmp = tempfile::tempdir()?;
+    let project = tmp.path().join("repo");
+    fs::create_dir_all(&project)?;
+    let config_path = project.join(".mimir/config.toml");
+    let data_root = tmp.path().join("mimir-data");
+    let drafts_dir = tmp.path().join("mimir-drafts");
+    write_process_config_without_binary(&config_path, &data_root, &drafts_dir, Some("claude"))?;
+    let session_root = tmp.path().join("sessions");
+    let plan = prepare_launch_plan(
+        ["codex"],
+        "session-codex-claude-adapter",
+        &project,
+        &env(&[("MIMIR_SESSION_DIR", &session_root)]),
+    )?;
+    let spec = plan.child_command_spec();
+    assert!(spec.env().contains(&("MIMIR_LIBRARIAN_ADAPTER", "claude")));
+    assert!(spec
+        .env()
+        .contains(&("MIMIR_LIBRARIAN_LLM_BINARY", "claude")));
+
+    let summary = capture_session_drafts(&plan, Some(0), UNIX_EPOCH)?;
+
+    assert_eq!(summary.active_agent, "codex");
+    assert_eq!(
+        summary.librarian_handoff.selected_adapter.as_deref(),
+        Some("claude")
+    );
+    let summary_path = plan
+        .capture_summary_path()
+        .ok_or("capture summary path must be set")?;
+    let summary_json: Value = serde_json::from_str(&fs::read_to_string(summary_path)?)?;
+    assert_eq!(summary_json["active_agent"], "codex");
+    assert_eq!(
+        summary_json["librarian_handoff"]["selected_adapter"],
+        "claude"
+    );
+    Ok(())
+}
+
+#[test]
+fn capture_summary_supports_copilot_processing_adapter() -> Result<(), Box<dyn std::error::Error>> {
+    let tmp = tempfile::tempdir()?;
+    let project = tmp.path().join("repo");
+    fs::create_dir_all(&project)?;
+    let config_path = project.join(".mimir/config.toml");
+    let data_root = tmp.path().join("mimir-data");
+    let drafts_dir = tmp.path().join("mimir-drafts");
+    write_process_config_without_binary(&config_path, &data_root, &drafts_dir, Some("copilot"))?;
+    let session_root = tmp.path().join("sessions");
+    let plan = prepare_launch_plan(
+        ["codex"],
+        "session-copilot-adapter",
+        &project,
+        &env(&[("MIMIR_SESSION_DIR", &session_root)]),
+    )?;
+    let spec = plan.child_command_spec();
+    assert!(spec.env().contains(&("MIMIR_LIBRARIAN_ADAPTER", "copilot")));
+    assert!(spec.env().contains(&("MIMIR_LIBRARIAN_LLM_BINARY", "gh")));
+
+    let summary = capture_session_drafts(&plan, Some(0), UNIX_EPOCH)?;
+
+    assert_eq!(summary.active_agent, "codex");
+    assert_eq!(
+        summary.librarian_handoff.selected_adapter.as_deref(),
+        Some("copilot")
+    );
+    let summary_path = plan
+        .capture_summary_path()
+        .ok_or("capture summary path must be set")?;
+    let summary_json: Value = serde_json::from_str(&fs::read_to_string(summary_path)?)?;
+    assert_eq!(summary_json["active_agent"], "codex");
+    assert_eq!(
+        summary_json["librarian_handoff"]["selected_adapter"],
+        "copilot"
+    );
     Ok(())
 }
 

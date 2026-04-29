@@ -26,7 +26,7 @@
 //! ```text
 //! ┌───────────────┐   ┌───────────────┐   ┌─────────────────────┐
 //! │ Drafts surface│──▶│  LlmInvoker   │──▶│ PreEmitValidator    │
-//! │ (filesystem)  │   │ (claude -p)   │   │ (mimir_core Pipeline│
+//! │ (filesystem)  │   │ (adapter CLI) │   │ (mimir_core Pipeline│
 //! │               │   │               │   │  clone-on-write)    │
 //! └───────────────┘   └───────────────┘   └─────────┬───────────┘
 //!                                                   │
@@ -68,7 +68,7 @@ pub use drafts::{
     DraftTransition, DRAFT_SCHEMA_VERSION,
 };
 pub use error::LibrarianError;
-pub use llm::{ClaudeCliInvoker, LlmInvoker};
+pub use llm::{ClaudeCliInvoker, CodexCliInvoker, CopilotCliInvoker, LlmAdapter, LlmInvoker};
 pub use processor::{
     DedupPolicy, RawArchiveDraftProcessor, RetryingDraftProcessor, SupersessionConflictPolicy,
 };

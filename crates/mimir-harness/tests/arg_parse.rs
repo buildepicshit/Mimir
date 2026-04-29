@@ -56,7 +56,9 @@ fn command_spec_injects_stable_session_environment() -> Result<(), Box<dyn std::
             ("MIMIR_AGENT", "codex"),
             ("MIMIR_BOOTSTRAP", "auto"),
             ("MIMIR_HARNESS", "1"),
+            ("MIMIR_LIBRARIAN_ADAPTER", "codex"),
             ("MIMIR_LIBRARIAN_AFTER_CAPTURE", "off"),
+            ("MIMIR_LIBRARIAN_LLM_BINARY", "codex"),
             ("MIMIR_PROJECT", "Mimir"),
             ("MIMIR_SESSION_ID", "test-session"),
         ]

@@ -1,10 +1,9 @@
-//! `LlmInvoker` — the trait over "ask Claude to structure this
-//! prose as canonical Mimir Lisp."
+//! `LlmInvoker` — the trait over "ask an active agent adapter to
+//! structure this prose as canonical Mimir Lisp."
 //!
 //! Wrapped as a trait so tests can mock the LLM without spawning
-//! subprocesses or hitting the operator's `claude` CLI auth. The
-//! default production impl is [`ClaudeCliInvoker`] which shells out
-//! to `claude -p` non-interactively.
+//! subprocesses or hitting the operator's native CLI auth. Production
+//! impls shell out to native non-interactive adapter surfaces.
 //!
 //! # Invocation shape
 //!
@@ -23,9 +22,11 @@
 //! match on the enum variant while logs and operator-facing
 //! surfaces get the diagnostic message.
 
-use std::io::Read as _;
+use std::fs;
+use std::io::{Read as _, Write as _};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -34,7 +35,9 @@ use wait_timeout::ChildExt as _;
 use crate::{LibrarianError, DEFAULT_LLM_TIMEOUT_SECS};
 
 /// Default binary name searched on `PATH`.
-const DEFAULT_BINARY: &str = "claude";
+const DEFAULT_CLAUDE_BINARY: &str = "claude";
+const DEFAULT_CODEX_BINARY: &str = "codex";
+const DEFAULT_COPILOT_BINARY: &str = "gh";
 
 /// Maximum number of characters of `stderr` retained in error
 /// messages on non-zero exit. Bounded, sufficient for debugging,
@@ -43,6 +46,51 @@ const STDERR_TAIL_CHARS: usize = 400;
 const TEXT_FILE_BUSY_OS_ERROR: i32 = 26;
 const SPAWN_RETRY_COUNT: usize = 3;
 const SPAWN_RETRY_DELAY: Duration = Duration::from_millis(10);
+static CODEX_RESPONSE_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+/// Supported LLM adapter surfaces for librarian draft processing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LlmAdapter {
+    /// Claude Code non-interactive print mode.
+    Claude,
+    /// Codex CLI non-interactive exec mode.
+    Codex,
+    /// GitHub Copilot CLI prompt mode, normally invoked through `gh copilot`.
+    Copilot,
+}
+
+impl LlmAdapter {
+    /// Parse a user/config adapter name.
+    #[must_use]
+    pub fn parse(value: &str) -> Option<Self> {
+        match value.trim() {
+            "claude" => Some(Self::Claude),
+            "codex" => Some(Self::Codex),
+            "copilot" => Some(Self::Copilot),
+            _ => None,
+        }
+    }
+
+    /// Stable adapter name for summaries and config.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Claude => "claude",
+            Self::Codex => "codex",
+            Self::Copilot => "copilot",
+        }
+    }
+
+    /// Default executable searched on `PATH` for this adapter.
+    #[must_use]
+    pub const fn default_binary(self) -> &'static str {
+        match self {
+            Self::Claude => DEFAULT_CLAUDE_BINARY,
+            Self::Codex => DEFAULT_CODEX_BINARY,
+            Self::Copilot => DEFAULT_COPILOT_BINARY,
+        }
+    }
+}
 
 /// Ask the LLM to produce a JSON response for a prose draft.
 ///
@@ -95,7 +143,7 @@ impl ClaudeCliInvoker {
         Self {
             model: model.into(),
             timeout: Duration::from_secs(DEFAULT_LLM_TIMEOUT_SECS),
-            binary_path: PathBuf::from(DEFAULT_BINARY),
+            binary_path: PathBuf::from(DEFAULT_CLAUDE_BINARY),
         }
     }
 
@@ -158,6 +206,240 @@ impl Default for ClaudeCliInvoker {
     }
 }
 
+/// Production `LlmInvoker` that shells out to Codex CLI in
+/// non-interactive mode.
+///
+/// [`CodexCliInvoker::invoke`] runs:
+///
+/// ```text
+/// <binary_path> exec [--model <model>] --output-last-message <tmpfile> -
+/// ```
+///
+/// with the combined system/user prompt written to stdin. Codex writes
+/// its final answer to the temporary `--output-last-message` path,
+/// which is then returned as the LLM response.
+#[derive(Debug, Clone)]
+pub struct CodexCliInvoker {
+    model: Option<String>,
+    timeout: Duration,
+    binary_path: PathBuf,
+}
+
+/// Production `LlmInvoker` that shells out to GitHub Copilot CLI.
+///
+/// By default this invokes `gh copilot -p <prompt>`, matching the
+/// supported wrapper available in GitHub CLI. If `binary_path` is set
+/// to a non-`gh` executable, it invokes that binary directly as
+/// `<binary_path> -p <prompt>` for operators with a standalone
+/// Copilot CLI on `PATH`.
+#[derive(Debug, Clone)]
+pub struct CopilotCliInvoker {
+    model: Option<String>,
+    timeout: Duration,
+    binary_path: PathBuf,
+}
+
+impl CopilotCliInvoker {
+    /// Construct a Copilot adapter invocation. GitHub Copilot CLI does
+    /// not currently expose a stable model flag through `gh copilot`;
+    /// the model value is retained for summaries and future direct
+    /// binary support.
+    #[must_use]
+    pub fn new(model: Option<String>) -> Self {
+        Self {
+            model,
+            timeout: Duration::from_secs(DEFAULT_LLM_TIMEOUT_SECS),
+            binary_path: PathBuf::from(DEFAULT_COPILOT_BINARY),
+        }
+    }
+
+    /// Override the invocation timeout.
+    #[must_use]
+    pub fn with_timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = timeout;
+        self
+    }
+
+    /// Override the path to the `gh` or standalone Copilot binary.
+    #[must_use]
+    pub fn with_binary_path(mut self, path: impl Into<PathBuf>) -> Self {
+        self.binary_path = path.into();
+        self
+    }
+
+    /// Configured model, if one was requested.
+    #[must_use]
+    pub fn model(&self) -> Option<&str> {
+        self.model.as_deref()
+    }
+
+    /// The per-invocation timeout.
+    #[must_use]
+    pub fn timeout(&self) -> Duration {
+        self.timeout
+    }
+
+    /// The binary path this invoker will execute.
+    #[must_use]
+    pub fn binary_path(&self) -> &Path {
+        &self.binary_path
+    }
+
+    fn build_argv(&self, prompt: &str) -> Vec<String> {
+        let mut argv = Vec::new();
+        if binary_basename(&self.binary_path) == Some("gh") {
+            argv.push("copilot".to_string());
+        }
+        argv.push("-p".to_string());
+        argv.push(prompt.to_string());
+        argv
+    }
+}
+
+impl CodexCliInvoker {
+    /// Construct a Codex adapter invocation. If `model` is `None`,
+    /// Codex uses its configured/default model.
+    #[must_use]
+    pub fn new(model: Option<String>) -> Self {
+        Self {
+            model,
+            timeout: Duration::from_secs(DEFAULT_LLM_TIMEOUT_SECS),
+            binary_path: PathBuf::from(DEFAULT_CODEX_BINARY),
+        }
+    }
+
+    /// Override the invocation timeout.
+    #[must_use]
+    pub fn with_timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = timeout;
+        self
+    }
+
+    /// Override the path to the `codex` binary.
+    #[must_use]
+    pub fn with_binary_path(mut self, path: impl Into<PathBuf>) -> Self {
+        self.binary_path = path.into();
+        self
+    }
+
+    /// Configured model, if one should be passed explicitly.
+    #[must_use]
+    pub fn model(&self) -> Option<&str> {
+        self.model.as_deref()
+    }
+
+    /// The per-invocation timeout.
+    #[must_use]
+    pub fn timeout(&self) -> Duration {
+        self.timeout
+    }
+
+    /// The binary path this invoker will execute.
+    #[must_use]
+    pub fn binary_path(&self) -> &Path {
+        &self.binary_path
+    }
+
+    fn build_argv(&self, response_path: &Path) -> Vec<String> {
+        let mut argv = vec!["exec".to_string()];
+        if let Some(model) = &self.model {
+            argv.push("--model".to_string());
+            argv.push(model.clone());
+        }
+        argv.push("--output-last-message".to_string());
+        argv.push(response_path.display().to_string());
+        argv.push("-".to_string());
+        argv
+    }
+}
+
+impl LlmInvoker for CopilotCliInvoker {
+    #[tracing::instrument(
+        name = "mimir.librarian.llm.invoke",
+        skip_all,
+        fields(
+            adapter = "copilot",
+            model = self.model.as_deref().unwrap_or("configured_default"),
+            prompt_bytes = system_prompt.len() + user_message.len(),
+            response_bytes = tracing::field::Empty,
+            exit_code = tracing::field::Empty,
+            duration_ms = tracing::field::Empty,
+        ),
+    )]
+    fn invoke(&self, system_prompt: &str, user_message: &str) -> Result<String, LibrarianError> {
+        let started = Instant::now();
+        let prompt = combined_prompt(system_prompt, user_message);
+        let argv = self.build_argv(&prompt);
+
+        let mut command = Command::new(&self.binary_path);
+        command
+            .args(&argv)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        let mut child = spawn_with_retry(&mut command).map_err(|io_err| {
+            LibrarianError::LlmInvocationFailed {
+                message: format!("failed to spawn {}: {io_err}", self.binary_path.display()),
+            }
+        })?;
+
+        let wait_outcome = child.wait_timeout(self.timeout);
+        let status = match wait_outcome {
+            Ok(Some(status)) => status,
+            Ok(None) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(LibrarianError::LlmInvocationFailed {
+                    message: format!("invocation timed out after {}s", self.timeout.as_secs()),
+                });
+            }
+            Err(io_err) => {
+                return Err(LibrarianError::LlmInvocationFailed {
+                    message: format!("wait error: {io_err}"),
+                });
+            }
+        };
+
+        let mut stdout = String::new();
+        if let Some(mut handle) = child.stdout.take() {
+            let _ = handle.read_to_string(&mut stdout);
+        }
+        let mut stderr = String::new();
+        if let Some(mut handle) = child.stderr.take() {
+            let _ = handle.read_to_string(&mut stderr);
+        }
+
+        let duration_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
+        let span = tracing::Span::current();
+        span.record("response_bytes", stdout.len());
+        span.record("duration_ms", duration_ms);
+
+        if !status.success() {
+            let exit_label = status
+                .code()
+                .map_or_else(|| "signalled".to_string(), |c| c.to_string());
+            span.record("exit_code", exit_label.as_str());
+            return Err(LibrarianError::LlmInvocationFailed {
+                message: format!(
+                    "{} exited {exit_label}: {}",
+                    self.binary_path.display(),
+                    tail_chars(stderr.trim())
+                ),
+            });
+        }
+        span.record("exit_code", 0);
+
+        let trimmed = stdout.trim();
+        if trimmed.is_empty() {
+            return Err(LibrarianError::LlmInvocationFailed {
+                message: format!("{} exited 0 with empty stdout", self.binary_path.display()),
+            });
+        }
+
+        Ok(trimmed.to_string())
+    }
+}
+
 /// Return at most the last `STDERR_TAIL_CHARS` characters of `s`,
 /// as a new `String`. UTF-8-safe (operates on `char` boundaries).
 fn tail_chars(s: &str) -> String {
@@ -167,6 +449,180 @@ fn tail_chars(s: &str) -> String {
     }
     let skip = char_count - STDERR_TAIL_CHARS;
     s.chars().skip(skip).collect()
+}
+
+fn binary_basename(path: &Path) -> Option<&str> {
+    path.file_stem()
+        .and_then(|stem| stem.to_str())
+        .or_else(|| path.to_str())
+}
+
+fn combined_prompt(system_prompt: &str, user_message: &str) -> String {
+    match (system_prompt.is_empty(), user_message.is_empty()) {
+        (true, true) => String::new(),
+        (true, false) => user_message.to_string(),
+        (false, true) => system_prompt.to_string(),
+        (false, false) => format!("{system_prompt}\n\n{user_message}"),
+    }
+}
+
+fn remove_response_file(path: &Path) {
+    let _ = fs::remove_file(path);
+}
+
+fn kill_child_and_remove_response(child: &mut Child, response_path: &Path) {
+    let _ = child.kill();
+    let _ = child.wait();
+    remove_response_file(response_path);
+}
+
+fn write_prompt_to_child_stdin(
+    child: &mut Child,
+    prompt: &str,
+    binary_path: &Path,
+    response_path: &Path,
+) -> Result<(), LibrarianError> {
+    if let Some(mut stdin) = child.stdin.take() {
+        if let Err(io_err) = stdin.write_all(prompt.as_bytes()) {
+            kill_child_and_remove_response(child, response_path);
+            return Err(LibrarianError::LlmInvocationFailed {
+                message: format!(
+                    "failed to write prompt to {}: {io_err}",
+                    binary_path.display()
+                ),
+            });
+        }
+        return Ok(());
+    }
+
+    kill_child_and_remove_response(child, response_path);
+    Err(LibrarianError::LlmInvocationFailed {
+        message: format!("{} stdin was unavailable", binary_path.display()),
+    })
+}
+
+impl LlmInvoker for CodexCliInvoker {
+    #[tracing::instrument(
+        name = "mimir.librarian.llm.invoke",
+        skip_all,
+        fields(
+            adapter = "codex",
+            model = self.model.as_deref().unwrap_or("configured_default"),
+            prompt_bytes = system_prompt.len() + user_message.len(),
+            response_bytes = tracing::field::Empty,
+            exit_code = tracing::field::Empty,
+            duration_ms = tracing::field::Empty,
+        ),
+    )]
+    fn invoke(&self, system_prompt: &str, user_message: &str) -> Result<String, LibrarianError> {
+        let started = Instant::now();
+        let response_path = next_codex_response_path();
+        let argv = self.build_argv(&response_path);
+        let prompt = combined_prompt(system_prompt, user_message);
+
+        let mut command = Command::new(&self.binary_path);
+        command
+            .args(&argv)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        let mut child = match spawn_with_retry(&mut command) {
+            Ok(child) => child,
+            Err(io_err) => {
+                let _ = fs::remove_file(&response_path);
+                return Err(LibrarianError::LlmInvocationFailed {
+                    message: format!("failed to spawn {}: {io_err}", self.binary_path.display()),
+                });
+            }
+        };
+
+        write_prompt_to_child_stdin(&mut child, &prompt, &self.binary_path, &response_path)?;
+
+        let wait_outcome = child.wait_timeout(self.timeout);
+        let status = match wait_outcome {
+            Ok(Some(status)) => status,
+            Ok(None) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                let _ = fs::remove_file(&response_path);
+                return Err(LibrarianError::LlmInvocationFailed {
+                    message: format!("invocation timed out after {}s", self.timeout.as_secs()),
+                });
+            }
+            Err(io_err) => {
+                let _ = fs::remove_file(&response_path);
+                return Err(LibrarianError::LlmInvocationFailed {
+                    message: format!("wait error: {io_err}"),
+                });
+            }
+        };
+
+        let mut stdout = String::new();
+        if let Some(mut handle) = child.stdout.take() {
+            let _ = handle.read_to_string(&mut stdout);
+        }
+        let mut stderr = String::new();
+        if let Some(mut handle) = child.stderr.take() {
+            let _ = handle.read_to_string(&mut stderr);
+        }
+
+        let duration_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
+        let span = tracing::Span::current();
+        span.record("duration_ms", duration_ms);
+
+        if !status.success() {
+            let exit_label = status
+                .code()
+                .map_or_else(|| "signalled".to_string(), |c| c.to_string());
+            span.record("exit_code", exit_label.as_str());
+            let _ = fs::remove_file(&response_path);
+            return Err(LibrarianError::LlmInvocationFailed {
+                message: format!(
+                    "{} exited {exit_label}: {}",
+                    self.binary_path.display(),
+                    tail_chars(stderr.trim())
+                ),
+            });
+        }
+        span.record("exit_code", 0);
+
+        let response = match fs::read_to_string(&response_path) {
+            Ok(response) => response,
+            Err(io_err) if stdout.trim().is_empty() => {
+                let _ = fs::remove_file(&response_path);
+                return Err(LibrarianError::LlmInvocationFailed {
+                    message: format!(
+                        "{} exited 0 but response file {} could not be read: {io_err}",
+                        self.binary_path.display(),
+                        response_path.display()
+                    ),
+                });
+            }
+            Err(_) => stdout,
+        };
+        let _ = fs::remove_file(&response_path);
+        span.record("response_bytes", response.len());
+
+        let trimmed = response.trim();
+        if trimmed.is_empty() {
+            return Err(LibrarianError::LlmInvocationFailed {
+                message: format!(
+                    "{} exited 0 with empty response",
+                    self.binary_path.display()
+                ),
+            });
+        }
+
+        Ok(trimmed.to_string())
+    }
+}
+
+fn next_codex_response_path() -> PathBuf {
+    let counter = CODEX_RESPONSE_COUNTER.fetch_add(1, Ordering::Relaxed);
+    std::env::temp_dir().join(format!(
+        "mimir-codex-llm-{}-{counter}.txt",
+        std::process::id()
+    ))
 }
 
 impl LlmInvoker for ClaudeCliInvoker {
@@ -286,7 +742,6 @@ mod tests {
     use super::*;
 
     use std::fs;
-    use std::io::Write as _;
     use tempfile::TempDir;
 
     /// Write an executable shell-script shim to a fresh tempdir.
@@ -382,6 +837,52 @@ mod tests {
     }
 
     #[test]
+    fn codex_argv_shape_is_exact() {
+        let invoker = CodexCliInvoker::new(Some("gpt-5.4".to_string()));
+        let argv = invoker.build_argv(Path::new("/tmp/mimir-codex-response.txt"));
+        assert_eq!(
+            argv,
+            vec![
+                "exec",
+                "--model",
+                "gpt-5.4",
+                "--output-last-message",
+                "/tmp/mimir-codex-response.txt",
+                "-",
+            ]
+        );
+    }
+
+    #[test]
+    fn copilot_argv_shape_uses_gh_wrapper_by_default() {
+        let invoker = CopilotCliInvoker::new(None);
+        let argv = invoker.build_argv("SYS\n\nUSER");
+        assert_eq!(argv, vec!["copilot", "-p", "SYS\n\nUSER"]);
+    }
+
+    #[test]
+    fn copilot_argv_shape_supports_direct_binary() {
+        let invoker = CopilotCliInvoker::new(None).with_binary_path("/tmp/copilot");
+        let argv = invoker.build_argv("SYS\n\nUSER");
+        assert_eq!(argv, vec!["-p", "SYS\n\nUSER"]);
+    }
+
+    #[test]
+    fn adapter_parse_supports_processing_surfaces() {
+        assert_eq!(LlmAdapter::parse("claude"), Some(LlmAdapter::Claude));
+        assert_eq!(LlmAdapter::parse("codex"), Some(LlmAdapter::Codex));
+        assert_eq!(LlmAdapter::parse("copilot"), Some(LlmAdapter::Copilot));
+        assert_eq!(LlmAdapter::parse("defer"), None);
+    }
+
+    #[test]
+    fn combined_prompt_omits_empty_sections() {
+        assert_eq!(combined_prompt("", "user"), "user");
+        assert_eq!(combined_prompt("system", ""), "system");
+        assert_eq!(combined_prompt("system", "user"), "system\n\nuser");
+    }
+
+    #[test]
     fn tail_chars_returns_whole_short_string() {
         assert_eq!(tail_chars("hello"), "hello");
     }
@@ -409,6 +910,24 @@ mod tests {
         let invoker = ClaudeCliInvoker::default().with_binary_path(&shim);
         let result = invoker.invoke("sys", "usr").expect("shim always succeeds");
         assert_eq!(result, r#"{"records":[],"notes":"ok"}"#);
+    }
+
+    #[test]
+    fn codex_invoke_reads_output_last_message_file() {
+        let (_dir, shim) = make_shim(
+            "#!/bin/sh\ncat >/dev/null\nprintf '{\"records\":[],\"notes\":\"codex\"}' > \"$3\"\n",
+        );
+        let invoker = CodexCliInvoker::new(None).with_binary_path(&shim);
+        let result = invoker.invoke("sys", "usr").expect("shim always succeeds");
+        assert_eq!(result, r#"{"records":[],"notes":"codex"}"#);
+    }
+
+    #[test]
+    fn copilot_invoke_returns_trimmed_stdout() {
+        let (_dir, shim) = make_shim("#!/bin/sh\necho '{\"records\":[],\"notes\":\"copilot\"}'\n");
+        let invoker = CopilotCliInvoker::new(None).with_binary_path(&shim);
+        let result = invoker.invoke("", "usr").expect("shim always succeeds");
+        assert_eq!(result, r#"{"records":[],"notes":"copilot"}"#);
     }
 
     #[test]
