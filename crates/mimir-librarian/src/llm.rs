@@ -368,7 +368,7 @@ impl LlmInvoker for CopilotCliInvoker {
     )]
     fn invoke(&self, system_prompt: &str, user_message: &str) -> Result<String, LibrarianError> {
         let started = Instant::now();
-        let prompt = format!("{system_prompt}\n\n{user_message}");
+        let prompt = combined_prompt(system_prompt, user_message);
         let argv = self.build_argv(&prompt);
 
         let mut command = Command::new(&self.binary_path);
@@ -457,6 +457,15 @@ fn binary_basename(path: &Path) -> Option<&str> {
         .or_else(|| path.to_str())
 }
 
+fn combined_prompt(system_prompt: &str, user_message: &str) -> String {
+    match (system_prompt.is_empty(), user_message.is_empty()) {
+        (true, true) => String::new(),
+        (true, false) => user_message.to_string(),
+        (false, true) => system_prompt.to_string(),
+        (false, false) => format!("{system_prompt}\n\n{user_message}"),
+    }
+}
+
 fn remove_response_file(path: &Path) {
     let _ = fs::remove_file(path);
 }
@@ -509,7 +518,7 @@ impl LlmInvoker for CodexCliInvoker {
         let started = Instant::now();
         let response_path = next_codex_response_path();
         let argv = self.build_argv(&response_path);
-        let prompt = format!("{system_prompt}\n\n{user_message}");
+        let prompt = combined_prompt(system_prompt, user_message);
 
         let mut command = Command::new(&self.binary_path);
         command
@@ -867,6 +876,13 @@ mod tests {
     }
 
     #[test]
+    fn combined_prompt_omits_empty_sections() {
+        assert_eq!(combined_prompt("", "user"), "user");
+        assert_eq!(combined_prompt("system", ""), "system");
+        assert_eq!(combined_prompt("system", "user"), "system\n\nuser");
+    }
+
+    #[test]
     fn tail_chars_returns_whole_short_string() {
         assert_eq!(tail_chars("hello"), "hello");
     }
@@ -910,7 +926,7 @@ mod tests {
     fn copilot_invoke_returns_trimmed_stdout() {
         let (_dir, shim) = make_shim("#!/bin/sh\necho '{\"records\":[],\"notes\":\"copilot\"}'\n");
         let invoker = CopilotCliInvoker::new(None).with_binary_path(&shim);
-        let result = invoker.invoke("sys", "usr").expect("shim always succeeds");
+        let result = invoker.invoke("", "usr").expect("shim always succeeds");
         assert_eq!(result, r#"{"records":[],"notes":"copilot"}"#);
     }
 
