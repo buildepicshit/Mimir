@@ -21,11 +21,11 @@ use mimir_core::read::{Framing, ReadError, ReadFlags};
 use mimir_core::{ClockTime, Store, StoreError, SymbolId};
 use mimir_core::{WorkspaceId, WorkspaceWriteLock};
 use mimir_librarian::{
-    run_once, ClaudeCliInvoker, DedupPolicy, DeferredDraftProcessor, Draft, DraftMetadata,
-    DraftRunSummary, DraftSourceSurface, DraftState, DraftStore, LibrarianError,
-    RawArchiveDraftProcessor, RetryingDraftProcessor, SupersessionConflictPolicy,
-    DEFAULT_DEDUP_VALID_AT_WINDOW_SECS, DEFAULT_LLM_TIMEOUT_SECS, DEFAULT_MAX_RETRIES_PER_RECORD,
-    DEFAULT_PROCESSING_STALE_SECS,
+    run_once, ClaudeCliInvoker, CodexCliInvoker, CopilotCliInvoker, DedupPolicy,
+    DeferredDraftProcessor, Draft, DraftMetadata, DraftRunSummary, DraftSourceSurface, DraftState,
+    DraftStore, LibrarianError, LlmAdapter, RawArchiveDraftProcessor, RetryingDraftProcessor,
+    SupersessionConflictPolicy, DEFAULT_DEDUP_VALID_AT_WINDOW_SECS, DEFAULT_LLM_TIMEOUT_SECS,
+    DEFAULT_MAX_RETRIES_PER_RECORD, DEFAULT_PROCESSING_STALE_SECS,
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -37,6 +37,7 @@ const BOOTSTRAP_GUIDE_PATH_ENV: &str = "MIMIR_BOOTSTRAP_GUIDE_PATH";
 const CONFIG_TEMPLATE_PATH_ENV: &str = "MIMIR_CONFIG_TEMPLATE_PATH";
 const CAPTURE_SUMMARY_PATH_ENV: &str = "MIMIR_CAPTURE_SUMMARY_PATH";
 const LIBRARIAN_AFTER_CAPTURE_ENV: &str = "MIMIR_LIBRARIAN_AFTER_CAPTURE";
+const LIBRARIAN_ADAPTER_ENV: &str = "MIMIR_LIBRARIAN_ADAPTER";
 const LIBRARIAN_LLM_BINARY_ENV: &str = "MIMIR_LIBRARIAN_LLM_BINARY";
 const LIBRARIAN_LLM_MODEL_ENV: &str = "MIMIR_LIBRARIAN_LLM_MODEL";
 const AGENT_GUIDE_PATH_ENV: &str = "MIMIR_AGENT_GUIDE_PATH";
@@ -45,7 +46,6 @@ const CHECKPOINT_COMMAND_ENV: &str = "MIMIR_CHECKPOINT_COMMAND";
 const SESSION_DRAFTS_DIR_ENV: &str = "MIMIR_SESSION_DRAFTS_DIR";
 const SESSION_DIR_ENV: &str = "MIMIR_SESSION_DIR";
 const CHECKPOINT_COMMAND: &str = "mimir checkpoint";
-const DEFAULT_LIBRARIAN_LLM_BINARY: &str = "claude";
 const DEFAULT_LIBRARIAN_LLM_MODEL: &str = "claude-sonnet-4-6";
 const PROJECT_CONFIG_PATH: &[&str] = &[".mimir", "config.toml"];
 const CAPSULE_REHYDRATION_LIMIT: usize = 32;
@@ -243,100 +243,10 @@ impl LaunchPlan {
     /// Build a stable command spec for inspection and tests.
     #[must_use]
     pub fn child_command_spec(&self) -> ChildCommandSpec {
-        let mut env = vec![
-            ("MIMIR_AGENT".to_string(), self.agent.clone()),
-            (
-                "MIMIR_BOOTSTRAP".to_string(),
-                self.bootstrap_state.as_env_value().to_string(),
-            ),
-            ("MIMIR_HARNESS".to_string(), "1".to_string()),
-        ];
-        if let Some(project) = &self.project {
-            env.push(("MIMIR_PROJECT".to_string(), project.clone()));
-        }
-        if let Some(config_path) = &self.config_path {
-            env.push((
-                CONFIG_PATH_ENV.to_string(),
-                config_path.display().to_string(),
-            ));
-        }
-        if let Some(data_root) = &self.data_root {
-            env.push((
-                "MIMIR_DATA_ROOT".to_string(),
-                data_root.display().to_string(),
-            ));
-        }
-        if let Some(drafts_dir) = &self.drafts_dir {
-            env.push((DRAFTS_DIR_ENV.to_string(), drafts_dir.display().to_string()));
-        }
-        if let Some(workspace_id) = self.workspace_id {
-            env.push(("MIMIR_WORKSPACE_ID".to_string(), workspace_id.to_string()));
-        }
-        if let Some(workspace_log_path) = &self.workspace_log_path {
-            env.push((
-                "MIMIR_WORKSPACE_PATH".to_string(),
-                workspace_log_path.display().to_string(),
-            ));
-        }
-        if let Some(capsule_path) = &self.capsule_path {
-            env.push((
-                "MIMIR_SESSION_CAPSULE_PATH".to_string(),
-                capsule_path.display().to_string(),
-            ));
-        }
-        if let Some(session_drafts_dir) = &self.session_drafts_dir {
-            env.push((
-                SESSION_DRAFTS_DIR_ENV.to_string(),
-                session_drafts_dir.display().to_string(),
-            ));
-        }
-        if let Some(agent_guide_path) = &self.agent_guide_path {
-            env.push((
-                AGENT_GUIDE_PATH_ENV.to_string(),
-                agent_guide_path.display().to_string(),
-            ));
-        }
-        if let Some(agent_setup_dir) = &self.agent_setup_dir {
-            env.push((
-                AGENT_SETUP_DIR_ENV.to_string(),
-                agent_setup_dir.display().to_string(),
-            ));
-        }
-        if self.session_drafts_dir.is_some() {
-            env.push((
-                CHECKPOINT_COMMAND_ENV.to_string(),
-                CHECKPOINT_COMMAND.to_string(),
-            ));
-        }
-        if let Some(bootstrap_guide_path) = &self.bootstrap_guide_path {
-            env.push((
-                BOOTSTRAP_GUIDE_PATH_ENV.to_string(),
-                bootstrap_guide_path.display().to_string(),
-            ));
-        }
-        if let Some(config_template_path) = &self.config_template_path {
-            env.push((
-                CONFIG_TEMPLATE_PATH_ENV.to_string(),
-                config_template_path.display().to_string(),
-            ));
-        }
-        if let Some(capture_summary_path) = &self.capture_summary_path {
-            env.push((
-                CAPTURE_SUMMARY_PATH_ENV.to_string(),
-                capture_summary_path.display().to_string(),
-            ));
-        }
-        env.push((
-            LIBRARIAN_AFTER_CAPTURE_ENV.to_string(),
-            self.librarian.after_capture.as_str().to_string(),
-        ));
-        env.push(("MIMIR_SESSION_ID".to_string(), self.session_id.clone()));
-        env.sort_by(|left, right| left.0.cmp(&right.0));
-
         ChildCommandSpec {
             program: self.agent.clone(),
             args: self.child_args(),
-            env,
+            env: child_command_env(self),
         }
     }
 
@@ -345,6 +255,105 @@ impl LaunchPlan {
         args.extend(self.agent_args.iter().cloned());
         args
     }
+}
+
+fn child_command_env(plan: &LaunchPlan) -> Vec<(String, String)> {
+    let mut env = vec![
+        ("MIMIR_AGENT".to_string(), plan.agent.clone()),
+        (
+            "MIMIR_BOOTSTRAP".to_string(),
+            plan.bootstrap_state.as_env_value().to_string(),
+        ),
+        ("MIMIR_HARNESS".to_string(), "1".to_string()),
+    ];
+    push_optional_string_env(&mut env, "MIMIR_PROJECT", plan.project.as_deref());
+    push_optional_path_env(&mut env, CONFIG_PATH_ENV, plan.config_path.as_deref());
+    push_optional_path_env(&mut env, "MIMIR_DATA_ROOT", plan.data_root.as_deref());
+    push_optional_path_env(&mut env, DRAFTS_DIR_ENV, plan.drafts_dir.as_deref());
+    push_optional_path_env(
+        &mut env,
+        "MIMIR_WORKSPACE_PATH",
+        plan.workspace_log_path.as_deref(),
+    );
+    push_optional_path_env(
+        &mut env,
+        "MIMIR_SESSION_CAPSULE_PATH",
+        plan.capsule_path.as_deref(),
+    );
+    push_optional_path_env(
+        &mut env,
+        SESSION_DRAFTS_DIR_ENV,
+        plan.session_drafts_dir.as_deref(),
+    );
+    push_optional_path_env(
+        &mut env,
+        AGENT_GUIDE_PATH_ENV,
+        plan.agent_guide_path.as_deref(),
+    );
+    push_optional_path_env(
+        &mut env,
+        AGENT_SETUP_DIR_ENV,
+        plan.agent_setup_dir.as_deref(),
+    );
+    push_optional_path_env(
+        &mut env,
+        BOOTSTRAP_GUIDE_PATH_ENV,
+        plan.bootstrap_guide_path.as_deref(),
+    );
+    push_optional_path_env(
+        &mut env,
+        CONFIG_TEMPLATE_PATH_ENV,
+        plan.config_template_path.as_deref(),
+    );
+    push_optional_path_env(
+        &mut env,
+        CAPTURE_SUMMARY_PATH_ENV,
+        plan.capture_summary_path.as_deref(),
+    );
+    if let Some(workspace_id) = plan.workspace_id {
+        env.push(("MIMIR_WORKSPACE_ID".to_string(), workspace_id.to_string()));
+    }
+    if plan.session_drafts_dir.is_some() {
+        env.push((
+            CHECKPOINT_COMMAND_ENV.to_string(),
+            CHECKPOINT_COMMAND.to_string(),
+        ));
+    }
+    push_librarian_child_env(&mut env, plan);
+    env.push(("MIMIR_SESSION_ID".to_string(), plan.session_id.clone()));
+    env.sort_by(|left, right| left.0.cmp(&right.0));
+    env
+}
+
+fn push_optional_string_env(env: &mut Vec<(String, String)>, key: &str, value: Option<&str>) {
+    if let Some(value) = value {
+        env.push((key.to_string(), value.to_string()));
+    }
+}
+
+fn push_optional_path_env(env: &mut Vec<(String, String)>, key: &str, value: Option<&Path>) {
+    if let Some(value) = value {
+        env.push((key.to_string(), value.display().to_string()));
+    }
+}
+
+fn push_librarian_child_env(env: &mut Vec<(String, String)>, plan: &LaunchPlan) {
+    let selected_adapter = selected_librarian_adapter(plan);
+    env.push((
+        LIBRARIAN_ADAPTER_ENV.to_string(),
+        selected_adapter.as_str().to_string(),
+    ));
+    env.push((
+        LIBRARIAN_LLM_BINARY_ENV.to_string(),
+        selected_librarian_binary(plan).display().to_string(),
+    ));
+    if let Some(model) = selected_librarian_model(plan) {
+        env.push((LIBRARIAN_LLM_MODEL_ENV.to_string(), model));
+    }
+    env.push((
+        LIBRARIAN_AFTER_CAPTURE_ENV.to_string(),
+        plan.librarian.after_capture.as_str().to_string(),
+    ));
 }
 
 /// Fully materialized child command shape.
@@ -1835,16 +1844,23 @@ fn append_draft_doctor_checks(
 }
 
 fn append_librarian_doctor_checks(checks: &mut Vec<DoctorCheck>, config: &HarnessConfig) {
+    let adapter = configured_librarian_adapter(&config.librarian, None);
+    let binary = config
+        .librarian
+        .llm_binary
+        .clone()
+        .unwrap_or_else(|| PathBuf::from(adapter.default_binary()));
     if config.librarian.after_capture == LibrarianAfterCapture::Process
-        && !command_path_available(&config.librarian.llm_binary)
+        && !command_path_available(&binary)
     {
         checks.push(DoctorCheck::action(
             "P0",
             "librarian_process_llm_unavailable",
             config_edit_command(config, "librarian.llm_binary"),
             format!(
-                "Process mode is configured, but `{}` is not available on PATH.",
-                config.librarian.llm_binary.display()
+                "Process mode is configured for the {adapter} adapter, but `{binary}` is not available on PATH.",
+                adapter = adapter.as_str(),
+                binary = binary.display()
             ),
         ));
     }
@@ -4005,6 +4021,8 @@ pub struct PostSessionDraftSummary {
 pub struct LibrarianHandoffSummary {
     /// Configured handoff mode: `off`, `defer`, `archive_raw`, or `process`.
     pub mode: String,
+    /// Selected processing adapter, such as `claude`, `codex`, or `copilot`.
+    pub selected_adapter: Option<String>,
     /// Outcome status: `skipped`, `blocked`, `deferred`, `archived_raw`, `processed`, or `failed`.
     pub status: String,
     /// Human-readable reason for skipped or failed handoff.
@@ -4062,6 +4080,8 @@ pub struct SessionCaptureSummary {
     schema_version: u8,
     /// Mimir session id.
     pub session_id: String,
+    /// Wrapped agent surface that owned this session.
+    pub active_agent: String,
     /// Capture timestamp in Unix milliseconds.
     pub submitted_at_unix_ms: u64,
     /// Native-memory sweep counts and draft paths.
@@ -4124,6 +4144,7 @@ pub fn capture_session_drafts(
             warnings.push(message.clone());
             LibrarianHandoffSummary {
                 mode: plan.librarian.after_capture.as_str().to_string(),
+                selected_adapter: process_selected_adapter(plan),
                 status: "failed".to_string(),
                 reason: Some(message),
                 run_summary: None,
@@ -4141,6 +4162,7 @@ pub fn capture_session_drafts(
     let summary = SessionCaptureSummary {
         schema_version: 1,
         session_id: plan.session_id.clone(),
+        active_agent: launch_agent_name(&plan.agent).to_string(),
         submitted_at_unix_ms: system_time_to_unix_ms(submitted_at),
         native_memory,
         session_checkpoints,
@@ -4269,6 +4291,7 @@ fn run_librarian_handoff(
     match plan.librarian.after_capture {
         LibrarianAfterCapture::Off => Ok(LibrarianHandoffSummary {
             mode,
+            selected_adapter: None,
             status: "skipped".to_string(),
             reason: Some("librarian after-capture handoff is disabled".to_string()),
             run_summary: None,
@@ -4287,6 +4310,7 @@ fn run_deferred_librarian_handoff(
     let Some(drafts_dir) = &plan.drafts_dir else {
         return Ok(LibrarianHandoffSummary {
             mode,
+            selected_adapter: None,
             status: "skipped".to_string(),
             reason: Some("no draft directory is configured".to_string()),
             run_summary: None,
@@ -4303,6 +4327,7 @@ fn run_deferred_librarian_handoff(
     .map_err(|source| HarnessError::Librarian { source })?;
     Ok(LibrarianHandoffSummary {
         mode,
+        selected_adapter: None,
         status: "deferred".to_string(),
         reason: None,
         run_summary: Some(run_summary),
@@ -4345,6 +4370,7 @@ fn run_archive_raw_librarian_handoff(
     .map_err(|source| HarnessError::Librarian { source })?;
     Ok(LibrarianHandoffSummary {
         mode,
+        selected_adapter: None,
         status: "archived_raw".to_string(),
         reason: None,
         run_summary: Some(run_summary),
@@ -4357,7 +4383,13 @@ fn run_processing_librarian_handoff(
     mode: String,
 ) -> Result<LibrarianHandoffSummary, HarnessError> {
     if let Some(reason) = process_librarian_blocker(plan) {
-        return Ok(blocked_librarian_handoff(mode, reason));
+        return Ok(LibrarianHandoffSummary {
+            mode,
+            selected_adapter: process_selected_adapter(plan),
+            status: "blocked".to_string(),
+            reason: Some(reason),
+            run_summary: None,
+        });
     }
 
     let Some(drafts_dir) = plan.drafts_dir.as_ref() else {
@@ -4374,9 +4406,82 @@ fn run_processing_librarian_handoff(
     };
     ensure_workspace_log_parent(workspace_log_path)?;
 
-    let invoker = ClaudeCliInvoker::new(plan.librarian.llm_model.clone())
-        .with_binary_path(&plan.librarian.llm_binary)
-        .with_timeout(plan.librarian.llm_timeout);
+    let store = DraftStore::new(drafts_dir);
+    let run_summary =
+        run_processing_adapter_once(&store, plan, workspace_log_path, drafts_dir, now)?;
+    Ok(LibrarianHandoffSummary {
+        mode,
+        selected_adapter: process_selected_adapter(plan),
+        status: "processed".to_string(),
+        reason: None,
+        run_summary: Some(run_summary),
+    })
+}
+
+fn run_processing_adapter_once(
+    store: &DraftStore,
+    plan: &LaunchPlan,
+    workspace_log_path: &Path,
+    drafts_dir: &Path,
+    now: SystemTime,
+) -> Result<DraftRunSummary, HarnessError> {
+    let adapter = selected_librarian_adapter(plan);
+    let binary = selected_librarian_binary(plan);
+    let model = selected_librarian_model(plan);
+    match adapter {
+        LlmAdapter::Claude => {
+            let invoker = ClaudeCliInvoker::new(
+                model.unwrap_or_else(|| DEFAULT_LIBRARIAN_LLM_MODEL.to_string()),
+            )
+            .with_binary_path(binary)
+            .with_timeout(plan.librarian.llm_timeout);
+            let mut processor =
+                configured_retrying_processor(invoker, plan, workspace_log_path, drafts_dir)?;
+            run_once(
+                store,
+                &mut processor,
+                now,
+                plan.librarian.processing_stale_after,
+            )
+            .map_err(|source| HarnessError::Librarian { source })
+        }
+        LlmAdapter::Codex => {
+            let invoker = CodexCliInvoker::new(model)
+                .with_binary_path(binary)
+                .with_timeout(plan.librarian.llm_timeout);
+            let mut processor =
+                configured_retrying_processor(invoker, plan, workspace_log_path, drafts_dir)?;
+            run_once(
+                store,
+                &mut processor,
+                now,
+                plan.librarian.processing_stale_after,
+            )
+            .map_err(|source| HarnessError::Librarian { source })
+        }
+        LlmAdapter::Copilot => {
+            let invoker = CopilotCliInvoker::new(model)
+                .with_binary_path(binary)
+                .with_timeout(plan.librarian.llm_timeout);
+            let mut processor =
+                configured_retrying_processor(invoker, plan, workspace_log_path, drafts_dir)?;
+            run_once(
+                store,
+                &mut processor,
+                now,
+                plan.librarian.processing_stale_after,
+            )
+            .map_err(|source| HarnessError::Librarian { source })
+        }
+    }
+}
+
+fn configured_retrying_processor<I: mimir_librarian::LlmInvoker>(
+    invoker: I,
+    plan: &LaunchPlan,
+    workspace_log_path: &Path,
+    drafts_dir: &Path,
+) -> Result<RetryingDraftProcessor<I>, HarnessError> {
     let mut processor = RetryingDraftProcessor::new(
         invoker,
         plan.librarian.max_retries_per_record,
@@ -4391,26 +4496,13 @@ fn run_processing_librarian_handoff(
             dir: drafts_dir.join("conflicts"),
         });
     }
-
-    let store = DraftStore::new(drafts_dir);
-    let run_summary = run_once(
-        &store,
-        &mut processor,
-        now,
-        plan.librarian.processing_stale_after,
-    )
-    .map_err(|source| HarnessError::Librarian { source })?;
-    Ok(LibrarianHandoffSummary {
-        mode,
-        status: "processed".to_string(),
-        reason: None,
-        run_summary: Some(run_summary),
-    })
+    Ok(processor)
 }
 
 fn blocked_librarian_handoff(mode: String, reason: impl Into<String>) -> LibrarianHandoffSummary {
     LibrarianHandoffSummary {
         mode,
+        selected_adapter: None,
         status: "blocked".to_string(),
         reason: Some(reason.into()),
         run_summary: None,
@@ -4430,13 +4522,50 @@ fn process_librarian_blocker(plan: &LaunchPlan) -> Option<String> {
                 .to_string(),
         );
     }
-    if !command_path_available(&plan.librarian.llm_binary) {
+    let binary = selected_librarian_binary(plan);
+    if !command_path_available(&binary) {
         return Some(format!(
-            "librarian process mode is blocked because LLM binary `{}` is not available",
-            plan.librarian.llm_binary.display()
+            "librarian process mode is blocked because {} adapter binary `{}` is not available",
+            selected_librarian_adapter(plan).as_str(),
+            binary.display()
         ));
     }
     None
+}
+
+fn process_selected_adapter(plan: &LaunchPlan) -> Option<String> {
+    matches!(plan.librarian.after_capture, LibrarianAfterCapture::Process)
+        .then(|| selected_librarian_adapter(plan).as_str().to_string())
+}
+
+fn selected_librarian_adapter(plan: &LaunchPlan) -> LlmAdapter {
+    configured_librarian_adapter(&plan.librarian, Some(&plan.agent))
+}
+
+fn configured_librarian_adapter(
+    config: &HarnessLibrarianConfig,
+    active_agent: Option<&str>,
+) -> LlmAdapter {
+    if let Some(adapter) = config.adapter {
+        return adapter;
+    }
+    active_agent
+        .and_then(|agent| LlmAdapter::parse(launch_agent_name(agent)))
+        .unwrap_or(LlmAdapter::Claude)
+}
+
+fn selected_librarian_binary(plan: &LaunchPlan) -> PathBuf {
+    plan.librarian
+        .llm_binary
+        .clone()
+        .unwrap_or_else(|| PathBuf::from(selected_librarian_adapter(plan).default_binary()))
+}
+
+fn selected_librarian_model(plan: &LaunchPlan) -> Option<String> {
+    plan.librarian.llm_model.clone().or_else(|| {
+        (selected_librarian_adapter(plan) == LlmAdapter::Claude)
+            .then(|| DEFAULT_LIBRARIAN_LLM_MODEL.to_string())
+    })
 }
 
 fn archive_raw_librarian_blocker(plan: &LaunchPlan) -> Option<String> {
@@ -5442,10 +5571,11 @@ impl SetupCheckStatus {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct HarnessLibrarianConfig {
     after_capture: LibrarianAfterCapture,
+    adapter: Option<LlmAdapter>,
     max_retries_per_record: u32,
     llm_timeout: Duration,
-    llm_binary: PathBuf,
-    llm_model: String,
+    llm_binary: Option<PathBuf>,
+    llm_model: Option<String>,
     processing_stale_after: Duration,
     dedup_valid_at_window: Duration,
     review_conflicts: bool,
@@ -5455,10 +5585,11 @@ impl Default for HarnessLibrarianConfig {
     fn default() -> Self {
         Self {
             after_capture: LibrarianAfterCapture::Off,
+            adapter: None,
             max_retries_per_record: DEFAULT_MAX_RETRIES_PER_RECORD,
             llm_timeout: Duration::from_secs(DEFAULT_LLM_TIMEOUT_SECS),
-            llm_binary: PathBuf::from(DEFAULT_LIBRARIAN_LLM_BINARY),
-            llm_model: DEFAULT_LIBRARIAN_LLM_MODEL.to_string(),
+            llm_binary: None,
+            llm_model: None,
             processing_stale_after: Duration::from_secs(DEFAULT_PROCESSING_STALE_SECS),
             dedup_valid_at_window: Duration::from_secs(DEFAULT_DEDUP_VALID_AT_WINDOW_SECS),
             review_conflicts: false,
@@ -5592,16 +5723,25 @@ fn configured_librarian(
             parse_librarian_after_capture(Path::new(LIBRARIAN_AFTER_CAPTURE_ENV), value)?;
     }
     if let Some(value) = env
+        .get(LIBRARIAN_ADAPTER_ENV)
+        .filter(|value| !value.trim().is_empty())
+    {
+        config.adapter = Some(parse_librarian_adapter(
+            Path::new(LIBRARIAN_ADAPTER_ENV),
+            value,
+        )?);
+    }
+    if let Some(value) = env
         .get(LIBRARIAN_LLM_BINARY_ENV)
         .filter(|value| !value.trim().is_empty())
     {
-        config.llm_binary = PathBuf::from(value.trim());
+        config.llm_binary = Some(PathBuf::from(value.trim()));
     }
     if let Some(value) = env
         .get(LIBRARIAN_LLM_MODEL_ENV)
         .filter(|value| !value.trim().is_empty())
     {
-        config.llm_model = value.trim().to_string();
+        config.llm_model = Some(value.trim().to_string());
     }
     Ok(config)
 }
@@ -5643,13 +5783,19 @@ fn librarian_config_from_toml(
     if let Some(value) = optional_toml_string(config_path, root, &["librarian", "after_capture"])? {
         config.after_capture = parse_librarian_after_capture(config_path, &value)?;
     }
+    if let Some(value) = optional_toml_string(config_path, root, &["librarian", "adapter"])? {
+        config.adapter = Some(parse_librarian_adapter(config_path, &value)?);
+    }
     if let Some(value) = optional_toml_string(config_path, root, &["librarian", "llm_binary"])? {
-        config.llm_binary =
-            resolve_config_command_path_checked(config_path, &["librarian", "llm_binary"], &value)?;
+        config.llm_binary = Some(resolve_config_command_path_checked(
+            config_path,
+            &["librarian", "llm_binary"],
+            &value,
+        )?);
     }
     if let Some(value) = optional_toml_string(config_path, root, &["librarian", "llm_model"])? {
         if let Some(model) = non_empty_text(&value) {
-            config.llm_model = model;
+            config.llm_model = Some(model);
         } else {
             return Err(HarnessError::ConfigInvalid {
                 path: config_path.to_path_buf(),
@@ -5700,6 +5846,16 @@ fn parse_librarian_after_capture(
             ),
         }),
     }
+}
+
+fn parse_librarian_adapter(config_path: &Path, value: &str) -> Result<LlmAdapter, HarnessError> {
+    LlmAdapter::parse(value).ok_or_else(|| HarnessError::ConfigInvalid {
+        path: config_path.to_path_buf(),
+        message: format!(
+            "expected `librarian.adapter` to be one of `claude`, `codex`, or `copilot`, got `{}`",
+            value.trim()
+        ),
+    })
 }
 
 fn native_memory_sources_from_config(
@@ -6997,22 +7153,28 @@ fn push_librarian_process_setup_checks(plan: &LaunchPlan, checks: &mut Vec<Setup
         )),
     }
 
-    if command_path_available(&plan.librarian.llm_binary) {
+    let adapter = selected_librarian_adapter(plan);
+    let binary = selected_librarian_binary(plan);
+    if command_path_available(&binary) {
         checks.push(setup_check(
             "librarian_process_llm_available",
             SetupCheckStatus::Ok,
-            "Librarian process mode can find the configured LLM binary.",
-            Some(plan.librarian.llm_binary.clone()),
+            format!(
+                "Librarian process mode can find the configured {} adapter binary.",
+                adapter.as_str()
+            ),
+            Some(binary),
         ));
     } else {
         checks.push(setup_check(
             "librarian_process_llm_unavailable",
             SetupCheckStatus::Action,
             format!(
-                "Configure librarian.llm_binary before using librarian process mode; `{}` was not found.",
-                plan.librarian.llm_binary.display()
+                "Configure librarian.llm_binary before using librarian process mode with the {} adapter; `{}` was not found.",
+                adapter.as_str(),
+                binary.display()
             ),
-            Some(plan.librarian.llm_binary.clone()),
+            Some(binary),
         ));
     }
 }
@@ -7634,8 +7796,9 @@ impl<'a> CapsuleDocument<'a> {
             },
             librarian: CapsuleLibrarian {
                 after_capture: plan.librarian.after_capture.as_str(),
-                llm_binary: plan.librarian.llm_binary.display().to_string(),
-                llm_model: &plan.librarian.llm_model,
+                adapter: selected_librarian_adapter(plan).as_str(),
+                llm_binary: selected_librarian_binary(plan).display().to_string(),
+                llm_model: selected_librarian_model(plan),
             },
             setup_checks: &plan.setup_checks,
             next_actions: next_actions_from_setup_checks(&plan.setup_checks),
@@ -7723,8 +7886,9 @@ struct CapsuleBootstrap {
 #[derive(Debug, Serialize)]
 struct CapsuleLibrarian<'a> {
     after_capture: &'a str,
+    adapter: &'a str,
     llm_binary: String,
-    llm_model: &'a str,
+    llm_model: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

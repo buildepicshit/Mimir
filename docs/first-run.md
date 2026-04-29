@@ -183,4 +183,4 @@ The native terminal UI is preserved. Mimir consumes only its own pre-agent flags
 - `workspace_status=unavailable`: the project has no detectable Git workspace yet, or storage is not configured.
 - `native_setup_*_project=missing`: run `mimir setup-agent status`, inspect generated setup artifacts from a wrapped launch, then install explicitly.
 - `librarian after_capture=archive_raw` is blocked: configure `storage.data_root` / `drafts.dir` and launch from a detectable Git workspace.
-- `librarian after_capture=process` is blocked: use `archive_raw` or `defer` until the draft directory, workspace log path, and configured LLM binary are all available.
+- `librarian after_capture=process` is blocked: use `archive_raw` or `defer` until the draft directory, workspace log path, and selected adapter binary are all available.
