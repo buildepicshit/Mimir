@@ -32,7 +32,7 @@ This checklist is the current public-launch sign-off surface for Mimir. It cover
 | CI | Done on main | GitHub Actions main run was green on 2026-04-28 after PR #12. |
 | Docs index | Done | `docs/README.md`. |
 | Launch article | Done | `docs/blog/2026-04-28-agent-memory-compiler-pipeline.md`, linked from README and docs index. |
-| Publishing plan | Done | `docs/launch-posting-plan.md` covers GitHub, launch article, Show HN / X / LinkedIn, Codex plugin bundle, crates.io/docs.rs alpha, and the deferred MCP Registry path. |
+| GitHub release | Done | GitHub Release `v0.1.0` was published on 2026-04-28 with platform archives and checksum assets. |
 | Public artifact hygiene | Done | Scratch research fixtures removed from tracked files; recovery benchmark promoted to `benchmarks/recovery`; historical planning notes moved to `.planning/planning`; stale internal-path sweep returned no hits. |
 
 ## Engineering Quality Gate
@@ -82,16 +82,16 @@ Public-surface checks: confirm no tracked files remain under removed scratch dir
 | Transparent harness exists. | `mimir-harness` wraps native agent commands and records capture summaries. | Allowed, local/pre-1.0 wording only. |
 | Recovery mirroring exists. | `mimir remote status|push|pull|drill` exists. | Allowed as local Git-backed BC/DR, not hosted sync. |
 | Mimir improves recovery outcomes. | Benchmark harness exists; live transcript-backed results are not published yet. | Not allowed yet. |
-| Stable public API/storage format. | Pre-1.0 workspace version and no release tag. | Not allowed yet. |
+| Stable public API/storage format. | Pre-1.0 `v0.1.0` alpha release; command surfaces and storage may still change before v1.0. | Not allowed yet. |
 | Hosted service or daemonized librarian. | Service remote is adapter-boundary only. | Not allowed yet. |
 
 ## Version And Release State
 
 - Workspace version: `0.1.0`.
-- Release tags: none.
-- First public tag target: `v0.1.0`, after cleanup branch is locally green and owner approves tagging.
-- Crates.io publishing waits for the `mimir-core` publish dry-run, crate README audit, and release ordering through `mimir-core` first.
-- docs.rs will build after crates are published to crates.io.
+- Release tag: `v0.1.0` at commit `315d791`.
+- GitHub Release `v0.1.0` was published on 2026-04-28 with platform archives and checksum assets.
+- Release notes list `mimir-core`, `mimir-cli`, `mimir-mcp`, `mimir-librarian`, and `mimir-harness` as published crates.
+- docs.rs pages are downstream of crates.io publication and are not re-audited by this checklist.
 
 ## Deferred After Public Opening
 
