@@ -35,14 +35,14 @@
       "id": "GT01",
       "category": "load_bearing_decision",
       "text": "Consensus outputs are governed evidence, not truth; canonical memory still requires the librarian path.",
-      "source_refs": ["AGENTS.md", "docs/concepts/consensus-quorum.md"],
+      "source_refs": ["PRINCIPLES.md", "docs/concepts/consensus-quorum.md"],
       "auto_fail_if_wrong": true
     },
     {
       "id": "GT02",
       "category": "load_bearing_decision",
       "text": "A quorum result must preserve participant identity, prompts, votes, dissent, and provenance.",
-      "source_refs": ["AGENTS.md", "docs/concepts/consensus-quorum.md"],
+      "source_refs": ["PRINCIPLES.md", "docs/concepts/consensus-quorum.md"],
       "auto_fail_if_wrong": true
     },
     {
@@ -70,7 +70,7 @@
       "id": "GT06",
       "category": "load_bearing_decision",
       "text": "One physical model playing multiple personas is not the same as cross-model agreement; the episode must record participant surfaces honestly.",
-      "source_refs": ["AGENTS.md", "docs/concepts/consensus-quorum.md"],
+      "source_refs": ["PRINCIPLES.md", "docs/concepts/consensus-quorum.md"],
       "auto_fail_if_wrong": true
     },
     {

@@ -2,11 +2,10 @@
 
 Mimir is a BES Studios research project in active pre-1.0 development. Public review is welcome, especially while the architecture is still early enough to change in response to good evidence.
 
-This file documents the contribution workflow for human contributors and agents (Claude Code, Codex, Cursor, Gemini CLI) working in-repo under `AGENTS.md`.
+This file documents the public contribution workflow for Mimir.
 
 ## Read first
 
-- [`AGENTS.md`](AGENTS.md) — authoritative operating manual (architectural invariants, engineering standards, engagement protocol, anti-patterns, commit conventions).
 - [`STATUS.md`](STATUS.md) — current phase and next milestone.
 - [`PRINCIPLES.md`](PRINCIPLES.md) — engineering principles and tooling policy (twelve sections covering testing, error handling, type safety, determinism, observability, performance targets, code style, dependency policy, documentation, semver, deprecation, release).
 - [`docs/launch-readiness.md`](docs/launch-readiness.md) — public launch readiness and current release gates.
@@ -58,7 +57,7 @@ rustflags = ["-C", "link-arg=-fuse-ld=mold"]
 
 ## Commit conventions
 
-Follow [Conventional Commits](https://www.conventionalcommits.org/) with Mimir's type list (see `AGENTS.md` § Commit Conventions):
+Follow [Conventional Commits](https://www.conventionalcommits.org/) with Mimir's type list:
 
 `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `research`, `spec`, `perf`, `build`, `ci`.
 
@@ -73,21 +72,7 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/) with Mimir's
 - Open a PR when the branch is ready for review.
 - Squash merge only. Linear history on `main`.
 - Never force-push to `main`.
-- PRs that create new architectural artifacts must cite primary sources or flag them `pending verification` per `AGENTS.md` § Engineering Standards.
-
-## Engagement protocol (agents working in-repo)
-
-This section is operational guidance for agents working directly in the maintainer workflow. It is not a barrier to public issues, questions, or normal human-authored PRs.
-
-Per `AGENTS.md` § Engagement Protocol:
-
-1. **Propose** in 2–3 sentences. What and why.
-2. **Wait** for yes / change / no.
-3. **Execute** the single concrete action. No scope expansion.
-4. **Report** what shipped plus the logical next step. Do not auto-roll.
-5. **Stop.** Owner directs the next step.
-
-Agents that deviate from this protocol are out of spec for Mimir work.
+- PRs that create new architectural artifacts must cite primary sources or flag them `pending verification`.
 
 ## Primary sources
 
@@ -95,7 +80,7 @@ Design claims cite primary literature (papers, specifications, canonical reposit
 
 ## Conduct
 
-All contributors — human and agent — follow [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
+All contributors follow [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
 
 ## Reporting vulnerabilities
 

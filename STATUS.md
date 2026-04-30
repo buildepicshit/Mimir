@@ -66,4 +66,4 @@ Mimir is an experimental local-first memory governance system for AI agents. It 
 - [`docs/launch-readiness.md`](docs/launch-readiness.md) - current launch checklist.
 - [`docs/launch-posting-plan.md`](docs/launch-posting-plan.md) - launch posting and listing plan.
 - [`docs/concepts/`](docs/concepts/) - architecture specs.
-- [`AGENTS.md`](AGENTS.md) - operating manual and invariants.
+- [`PRINCIPLES.md`](PRINCIPLES.md) - engineering principles and architectural boundaries.

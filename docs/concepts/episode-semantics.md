@@ -36,7 +36,7 @@ Graduates draft → authoritative when:
 
 ## 2. Design thesis: Episode as the atomic unit of agent work
 
-AGENTS.md invariant #6: *"Checkpoint-triggered write batches. Each checkpoint is one Episode (atomic rollback unit)."*
+PRINCIPLES.md architectural boundary #6: *"Checkpoint-triggered write batches. Each checkpoint is one Episode (atomic rollback unit)."*
 
 Two forces shape the Episode abstraction:
 
@@ -176,7 +176,7 @@ Supersession operates on memories, not on Episodes. A memory in Episode 1 can be
 
 ### 8.1 No Episode rollback
 
-There is no "undo this Episode" operation. The write protocol's rollback exists only for in-flight batches before CHECKPOINT fsync. Committed Episodes are append-only per AGENTS.md invariant #3.
+There is no "undo this Episode" operation. The write protocol's rollback exists only for in-flight batches before CHECKPOINT fsync. Committed Episodes are append-only per PRINCIPLES.md architectural boundary #3.
 
 ### 8.2 No Episode deletion
 

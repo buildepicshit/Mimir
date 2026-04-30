@@ -47,7 +47,7 @@ The librarian enforces the partition at bind time. A write without an active wor
 
 Tenant-id-as-column in a shared store is a leaky abstraction. Every query must carry a tenant predicate; one missing predicate leaks cross-tenant data. Hard partitioning means contamination is structurally impossible — there is no shared backend to query incorrectly.
 
-This matches the operational pattern Mimir was conceived from. Claude Code scopes `CLAUDE.md` to a repo and memory directories to per-project hashes (`~/.claude/projects/<hash>/memory/`), and Claude Code's memory is machine-local by design — never synchronized across machines ([Claude Code memory docs](https://code.claude.com/docs/en/memory.md)). Mimir inherits the machine-local default; cross-machine replication is a post-MVP candidate (§ 8.2). Mimir formalizes the per-project convention into a first-class architectural invariant.
+This matches the operational pattern Mimir was conceived from. Claude Code scopes repository instructions and memory directories to per-project hashes (`~/.claude/projects/<hash>/memory/`), and Claude Code's memory is machine-local by design — never synchronized across machines ([Claude Code memory docs](https://code.claude.com/docs/en/memory.md)). Mimir inherits the machine-local default; cross-machine replication is a post-MVP candidate (§ 8.2). Mimir formalizes the per-project convention into a first-class architectural boundary.
 
 ## 3. Workspace identity
 
@@ -132,7 +132,7 @@ Different workspaces share no files, no symbol IDs, and no canonical state.
 
 ### 4.3 Write stream per workspace
 
-Each workspace has its own write queue and WAL stream. Different Claude instances each attach to their own workspace; their write streams are independent. The "librarian is single-writer" invariant (AGENTS.md § Architectural Invariants #1) is enforced per-workspace — one writer, one workspace.
+Each workspace has its own write queue and WAL stream. Different Claude instances each attach to their own workspace; their write streams are independent. The "librarian is single-writer" invariant (PRINCIPLES.md § Architectural Boundaries #1) is enforced per-workspace — one writer, one workspace.
 
 ### 4.4 Ephemeral scope interaction
 
@@ -198,7 +198,7 @@ Enforcement rules:
 
 All entries are verified per `docs/attribution.md`. None is load-bearing for the partitioning decisions above — those derive from Mimir's architectural principles (hard partitioning over shared-backend) and the operational precedent in Claude Code.
 
-- **Claude Code memory model** ([`https://code.claude.com/docs/en/memory.md`](https://code.claude.com/docs/en/memory.md), pending) — `CLAUDE.md` scoping, `~/.claude/projects/<hash>/memory/` per-project isolation, and machine-local-by-default stance directly informed this design. Verified against § 2, § 3.1, and the machine-local inheritance in § 8.2.
+- **Claude Code memory model** ([`https://code.claude.com/docs/en/memory.md`](https://code.claude.com/docs/en/memory.md), pending) — repository instruction scoping, `~/.claude/projects/<hash>/memory/` per-project isolation, and machine-local-by-default stance directly informed this design. Verified against § 2, § 3.1, and the machine-local inheritance in § 8.2.
 - **Anthropic Managed Agents API memory stores** ([`https://platform.claude.com/docs/en/managed-agents/memory.md`](https://platform.claude.com/docs/en/managed-agents/memory.md), pending) — explicit memory-store attachment with `read_only` vs `read_write` access control, per-memory size caps (~100 KB), optimistic concurrency via content hashes. Cited for the post-MVP access-control direction in § 8.2 and the per-memory size-budget open question in § 8.1.
 - **Anthropic Managed Agents API sessions** ([`https://platform.claude.com/docs/en/managed-agents/sessions.md`](https://platform.claude.com/docs/en/managed-agents/sessions.md), pending) — session-level vs durable resource distinction. Referenced for the ephemeral-vs-canonical distinction in `memory-type-taxonomy.md`.
 - **Postgres schema-based tenant isolation** (verified) — the shared-backend-with-tenant-predicate pattern. Mimir diverges (hard partitioning over shared-backend); cited as prior art for why Mimir chose the other path.

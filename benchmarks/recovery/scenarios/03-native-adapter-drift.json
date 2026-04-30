@@ -35,7 +35,7 @@
       "id": "GT01",
       "category": "load_bearing_decision",
       "text": "Native adapters are read-only and remain untrusted supplements until their output crosses the draft/librarian path.",
-      "source_refs": [".planning/planning/2026-04-27-progressive-recall-ladder.md", "AGENTS.md"],
+      "source_refs": [".planning/planning/2026-04-27-progressive-recall-ladder.md", "PRINCIPLES.md"],
       "auto_fail_if_wrong": true
     },
     {
@@ -84,7 +84,7 @@
       "id": "GT08",
       "category": "load_bearing_decision",
       "text": "Raw native session stores are not canonical memory; every durable write still goes through drafts and the librarian.",
-      "source_refs": ["AGENTS.md", ".planning/planning/2026-04-27-cold-start-rehydration-protocol.md"],
+      "source_refs": ["PRINCIPLES.md", ".planning/planning/2026-04-27-cold-start-rehydration-protocol.md"],
       "auto_fail_if_wrong": true
     }
   ],

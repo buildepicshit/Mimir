@@ -7475,7 +7475,7 @@ fn agent_guide_text(plan: &LaunchPlan) -> String {
         ),
         "codex" => guide.push_str(
             "\n## Codex CLI path\n\n\
-             Mimir injects concise developer instructions with `-c developer_instructions=...`, preserving Codex's native TUI and AGENTS.md behavior while adding session memory instructions. Agent setup artifacts are written under `MIMIR_AGENT_SETUP_DIR`; install the generated skill or hook snippets only as an explicit one-time setup action. Use `mimir checkpoint` from shell commands for intentional memory capture.\n",
+             Mimir injects concise developer instructions with `-c developer_instructions=...`, preserving Codex's native TUI and repo-native behavior while adding session memory instructions. Agent setup artifacts are written under `MIMIR_AGENT_SETUP_DIR`; install the generated skill or hook snippets only as an explicit one-time setup action. Use `mimir checkpoint` from shell commands for intentional memory capture.\n",
         ),
         _ => guide.push_str(
             "\n## Generic wrapped-agent path\n\n\
