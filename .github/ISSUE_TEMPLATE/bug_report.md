@@ -10,7 +10,7 @@ labels: bug
 
 ## What was expected
 
-<!-- The designed or documented behavior. Cite the spec or AGENTS.md invariant. -->
+<!-- The designed or documented behavior. Cite the relevant spec or invariant. -->
 
 ## Minimum reproduction
 

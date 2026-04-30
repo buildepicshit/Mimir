@@ -2,13 +2,13 @@
 
 All notable changes to Mimir are documented in this file.
 
-The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Mimir adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) once it reaches a first release; version policy is documented in `PRINCIPLES.md`.
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Mimir follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for published releases; version policy is documented in `PRINCIPLES.md`.
 
 ## [Unreleased]
 
 ### Added — launch publication assets
 
-- **Launch article and posting assets** — added the public launch article, linked it from the docs index and README, and aligned the posting plan with the approved launch channels: GitHub, launch article, Show HN / X / LinkedIn, Codex plugin bundle, and crates.io/docs.rs alpha with MCP registry submission deferred.
+- **Launch article** — added the public launch article and linked it from the docs index and README.
 - **Hidden planning archive** — moved historical planning notes into `.planning/planning` and removed stale public-doc links to planning scratch.
 
 ### Changed — public launch surface

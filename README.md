@@ -92,7 +92,7 @@ mimir remote push
 - [`PRINCIPLES.md`](PRINCIPLES.md) - engineering principles and architectural boundaries.
 - [`docs/concepts/`](docs/concepts/) - architecture specs.
 - [`docs/launch-readiness.md`](docs/launch-readiness.md) - OSS, engineering, and promise sign-off checklist.
-- [`docs/launch-posting-plan.md`](docs/launch-posting-plan.md) - launch article, listing, and posting plan.
+- [`RELEASING.md`](RELEASING.md) - release process and package workflow.
 - [`docs/blog/2026-04-28-agent-memory-compiler-pipeline.md`](docs/blog/2026-04-28-agent-memory-compiler-pipeline.md) - launch article.
 
 ## Contributing

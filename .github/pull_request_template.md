@@ -1,5 +1,5 @@
 <!--
-Keep this PR scoped and atomic. See CONTRIBUTING.md and AGENTS.md for conventions.
+Keep this PR scoped and atomic. See CONTRIBUTING.md for public conventions.
 No AI attribution anywhere in the PR body or commit messages.
 -->
 
@@ -25,15 +25,15 @@ Choose the closest current track:
 <!--
 Evidence the change is correct. Test output, spec cross-references, reproduction commands.
 Tests passing is not correctness. Attach fresh verification output for any "done" claim.
-If GitHub Actions is disabled for quota, include the local gate output required by AGENTS.md.
+If GitHub Actions is disabled for quota, include the relevant local gate output.
 -->
 
 ## Checklist
 
 - [ ] Conventional Commits format on every commit
 - [ ] No AI attribution in commits, PR body, or any file
-- [ ] Primary sources cited, or marked `pending verification` per AGENTS.md
-- [ ] Relevant `AGENTS.md` invariants reviewed for conflict
+- [ ] Primary sources cited, or marked `pending verification`
+- [ ] Relevant public docs and architectural invariants reviewed for conflict
 - [ ] Public-facing status claims stay bounded to implemented and verified behavior
 - [ ] Local gate output included if CI is unavailable due quota
 - [ ] `STATUS.md` updated if milestone or phase state changed

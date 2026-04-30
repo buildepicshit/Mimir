@@ -2,7 +2,7 @@
 
 This document is the canonical runbook for cutting a release. The pipeline lives in `.github/workflows/release.yml`.
 
-Mimir follows [SemVer](https://semver.org/) once it reaches its first release. Pre-1.0 series may carry breaking wire-format changes between minor versions and will be called out in `CHANGELOG.md` under `### Changed — wire format`.
+Mimir follows [SemVer](https://semver.org/) for published releases. Pre-1.0 series may carry breaking wire-format changes between minor versions and will be called out in `CHANGELOG.md` under `### Changed — wire format`.
 
 ## Versioning policy
 

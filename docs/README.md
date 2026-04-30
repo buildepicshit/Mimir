@@ -9,7 +9,6 @@ This is the public documentation index for Mimir. Planning notes remain availabl
 - [`first-run.md`](first-run.md) - fresh-clone walkthrough.
 - [`bc-dr-restore.md`](bc-dr-restore.md) - Git-backed backup and restore flow.
 - [`launch-readiness.md`](launch-readiness.md) - OSS readiness, engineering quality, and promise audit.
-- [`launch-posting-plan.md`](launch-posting-plan.md) - launch article, posting, and listing plan.
 - [`blog/2026-04-28-agent-memory-compiler-pipeline.md`](blog/2026-04-28-agent-memory-compiler-pipeline.md) - public launch article.
 
 ## Architecture
@@ -31,4 +30,4 @@ This is the public documentation index for Mimir. Planning notes remain availabl
 
 ## Launch Execution
 
-Historical planning notes are kept outside the public docs tree. Current launch execution is tracked in [`launch-readiness.md`](launch-readiness.md) and [`launch-posting-plan.md`](launch-posting-plan.md).
+Historical planning notes are kept outside the public docs tree. Current release state is tracked in [`../STATUS.md`](../STATUS.md), readiness evidence in [`launch-readiness.md`](launch-readiness.md), and release mechanics in [`../RELEASING.md`](../RELEASING.md).

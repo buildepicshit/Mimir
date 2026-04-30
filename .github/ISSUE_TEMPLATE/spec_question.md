@@ -6,7 +6,7 @@ labels: spec-question
 
 ## Area
 
-<!-- Which spec file under `docs/concepts/` or which `AGENTS.md` invariant. -->
+<!-- Which spec file under `docs/concepts/` or which documented invariant. -->
 
 ## Question
 

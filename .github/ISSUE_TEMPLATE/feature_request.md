@@ -18,4 +18,4 @@ labels: feature
 
 ## Architectural fit
 
-<!-- Cross-reference AGENTS.md invariants. Does this require a new invariant or spec under `docs/concepts/`? -->
+<!-- Cross-reference documented invariants. Does this require a new invariant or spec under `docs/concepts/`? -->

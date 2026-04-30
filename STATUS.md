@@ -1,10 +1,10 @@
 ---
 project: Mimir
-phase: pre-1.0 public launch cleanup
-last_updated: 2026-04-28
+phase: post-v0.1.0 alpha cleanup
+last_updated: 2026-04-30
 version: 0.1.0
-release_tags: none
-ci_state: "main green on 2026-04-28 after PR #11; cleanup branch local gate passed on 2026-04-28"
+release_tags: v0.1.0
+ci_state: "main green on 2026-04-28 after PR #11; current branch verification is recorded in PR evidence"
 blockers: []
 ---
 
@@ -24,7 +24,7 @@ Mimir is an experimental local-first memory governance system for AI agents. It 
 | MCP | `mimir-mcp` exposes local governed memory tools over stdio MCP. |
 | Recovery | Git-backed remote push/pull/drill flows verify append-only log integrity and copy draft JSON without mutating canonical history. |
 | Benchmarks | Recovery benchmark fixtures and validation harness live under `benchmarks/recovery`; live benchmark claims are not made yet. |
-| Release | Workspace version is `0.1.0`; no release tag exists yet. Tag `v0.1.0` only after the owner approves the release step. |
+| Release | Workspace version is `0.1.0`; tag `v0.1.0` points to commit `315d791`, and GitHub Release `v0.1.0` was published on 2026-04-28 with platform archives and checksums. |
 
 ## Architectural Boundaries
 
@@ -37,12 +37,12 @@ Mimir is an experimental local-first memory governance system for AI agents. It 
 
 ## Launch Work Order
 
-1. Public surface scrub: remove tracked scratch artifacts and stale public references.
-2. README and docs index cleanup.
-3. OSS readiness, engineering quality, and promise-audit checklist.
-4. Marketing, article, posting, and listing plan.
-5. Local verification only: build, tests, fmt, clippy, targeted benchmark checks, docs/package checks where relevant.
-6. One batched commit and one push after local green.
+1. Keep public documentation links aligned with files that exist in the repo.
+2. Keep README and docs index cleanup batched with other public admin updates.
+3. Keep OSS readiness, engineering quality, and promise-audit status current.
+4. Keep future release communication and listing work separate from implementation status.
+5. Verify locally before pushing: build, tests, fmt, clippy, targeted benchmark checks, docs/package checks where relevant.
+6. Use one batched commit and one push after local green.
 
 ## Public Claims Allowed Now
 
@@ -64,6 +64,6 @@ Mimir is an experimental local-first memory governance system for AI agents. It 
 - [`README.md`](README.md) - public entry point.
 - [`docs/README.md`](docs/README.md) - documentation index.
 - [`docs/launch-readiness.md`](docs/launch-readiness.md) - current launch checklist.
-- [`docs/launch-posting-plan.md`](docs/launch-posting-plan.md) - launch posting and listing plan.
+- [`RELEASING.md`](RELEASING.md) - release runbook.
 - [`docs/concepts/`](docs/concepts/) - architecture specs.
 - [`PRINCIPLES.md`](PRINCIPLES.md) - engineering principles and architectural boundaries.
