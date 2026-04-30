@@ -91,7 +91,7 @@ Earlier drafts defined `:read_after @episode_id` as a read predicate that blocks
 
 `Store::commit_batch` takes `&mut self`. A workspace's `Store` value is owned exclusively by one call site at a time; concurrent writers are impossible because Rust's borrow checker rejects the program that would express them.
 
-If two threads / tasks want to write to the same workspace, they share a `Store` behind a `Mutex` / `RwLock` / channel-and-actor — and in doing so they have explicitly serialized their writes. That matches `AGENTS.md` invariant #1 ("one librarian per workspace, single writer") without any wire-level coordination.
+If two threads / tasks want to write to the same workspace, they share a `Store` behind a `Mutex` / `RwLock` / channel-and-actor — and in doing so they have explicitly serialized their writes. That matches `PRINCIPLES.md` invariant #1 ("one librarian per workspace, single writer") without any wire-level coordination.
 
 For the Claude target this doesn't even come up: one agent, one `Store`, one call stack.
 
@@ -165,7 +165,7 @@ The following have durable post-v1 positions on the roadmap but are **not** part
 - **Network transport.** Cross-machine deployments imply authentication, encryption, framing, and cross-clock correlation — a substantially different architecture.
 - **Async queue + status channel.** See § 2 design thesis. A persistent queue would only make sense alongside the daemon, which we've scoped out.
 - **Read-push notifications.** No server-sent-events; reads are pull-only via `execute_query`.
-- **Multi-writer / SSI.** Explicitly forbidden by `AGENTS.md` invariant #1 and user-level scope.
+- **Multi-writer / SSI.** Explicitly forbidden by `PRINCIPLES.md` invariant #1 and user-level scope.
 - **Cross-workspace wire connections.** A `Store` attaches to exactly one workspace.
 - **Authentication, authorization, encryption.** Filesystem-permission-gated log + in-process linkage = no adversarial boundary to defend in v1.
 

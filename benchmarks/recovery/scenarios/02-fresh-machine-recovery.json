@@ -35,7 +35,7 @@
       "id": "GT01",
       "category": "project_state",
       "text": "The transparent harness entry point is `mimir <agent> [agent args...]`; recovery should preserve the native agent UI while adding Mimir setup, rehydration, and capture.",
-      "source_refs": ["AGENTS.md", ".planning/planning/2026-04-24-transparent-agent-harness.md"],
+      "source_refs": ["PRINCIPLES.md", ".planning/planning/2026-04-24-transparent-agent-harness.md"],
       "auto_fail_if_wrong": false
     },
     {
@@ -56,7 +56,7 @@
       "id": "GT04",
       "category": "load_bearing_decision",
       "text": "Remote sync must respect append-only canonical logs; divergent logs require preserving both sides and librarian review instead of overwrite.",
-      "source_refs": ["AGENTS.md", "crates/mimir-harness/README.md"],
+      "source_refs": ["PRINCIPLES.md", "crates/mimir-harness/README.md"],
       "auto_fail_if_wrong": true
     },
     {
@@ -84,7 +84,7 @@
       "id": "GT08",
       "category": "operator_profile",
       "text": "Because CI minutes are limited, recovery changes should be batched and fully verified locally before any push.",
-      "source_refs": ["AGENTS.md"],
+      "source_refs": ["PRINCIPLES.md"],
       "auto_fail_if_wrong": false
     }
   ],

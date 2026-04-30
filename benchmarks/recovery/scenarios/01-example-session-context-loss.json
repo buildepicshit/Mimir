@@ -35,21 +35,21 @@
       "id": "GT01",
       "category": "operator_profile",
       "text": "Operator is Alain Dormehl, owner of Mimir and BES Studios.",
-      "source_refs": ["AGENTS.md"],
+      "source_refs": ["PRINCIPLES.md"],
       "auto_fail_if_wrong": false
     },
     {
       "id": "GT02",
       "category": "operator_profile",
       "text": "Engagement protocol is Propose, Wait, Execute, Report, Stop.",
-      "source_refs": ["AGENTS.md"],
+      "source_refs": ["PRINCIPLES.md"],
       "auto_fail_if_wrong": false
     },
     {
       "id": "GT03",
       "category": "operator_profile",
       "text": "CI quota is a hard rule: verify locally before every push because GitHub Actions minutes are limited.",
-      "source_refs": ["AGENTS.md"],
+      "source_refs": ["PRINCIPLES.md"],
       "auto_fail_if_wrong": false
     },
     {
@@ -84,7 +84,7 @@
       "id": "GT08",
       "category": "project_state",
       "text": "GitHub Actions quota was exhausted as of 2026-04-20; recent CI failures in about two seconds with empty steps arrays were the quota fingerprint, not a workflow config bug.",
-      "source_refs": ["AGENTS.md", "benchmarks/recovery/scenarios/01-example-session-context-loss.md"],
+      "source_refs": ["PRINCIPLES.md", "benchmarks/recovery/scenarios/01-example-session-context-loss.md"],
       "auto_fail_if_wrong": false
     },
     {
@@ -119,7 +119,7 @@
       "id": "GT13",
       "category": "load_bearing_decision",
       "text": "Agent-native at the runtime surface is load-bearing: MCP responses, retrieved payloads, and recovery digests should be token-dense and structured, while human-readable output belongs to observability surfaces.",
-      "source_refs": ["AGENTS.md", ".planning/planning/2026-04-20-mission-scope-and-recovery-benchmark.md"],
+      "source_refs": ["PRINCIPLES.md", ".planning/planning/2026-04-20-mission-scope-and-recovery-benchmark.md"],
       "auto_fail_if_wrong": true
     },
     {

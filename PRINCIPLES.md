@@ -1,6 +1,6 @@
 # Mimir Engineering Principles
 
-> **Tracked since Phase 2 (PR #2).** Cross-linked from `AGENTS.md`; `AGENTS.md` is the operating manual (invariants, engagement protocol, anti-patterns), this file is the broader engineering-practice surface. Section-level changes go via PR per `CHANGELOG.md`.
+> **Tracked since Phase 2 (PR #2).** This file is the public engineering-practice and product architecture boundary surface. Section-level changes go via PR per `CHANGELOG.md`.
 
 ## Framing principle
 
@@ -9,6 +9,19 @@
 Application: prefer determinism over speed, type rigor over flexibility, correctness-by-construction over iteration velocity, explicit error modelling over implicit propagation, and boundaries that force invalid states to be unrepresentable rather than detected-and-rejected.
 
 This principle is load-bearing. When a tradeoff is ambiguous, the question to ask is: *which resolution makes Mimir more useful to the agent consuming it?* — not *which is faster to write or easier for a human to skim.*
+
+---
+
+## Architectural Boundaries
+
+1. **Librarian-governed writes.** Agents may propose drafts, but trusted canonical records are committed only through the librarian path.
+2. **Agent-native canonical form.** The canonical store is optimized for agent consumption, not direct human editing. Humans inspect it through decoder tools.
+3. **Append-only history.** Canonical memory is never overwritten in place. Revocation, correction, supersession, and retirement are represented as new records or edges.
+4. **Deterministic core pipeline.** Lexing, parsing, binding, semantic analysis, emission, replay, read routing, and invariant checks are deterministic.
+5. **Adapter-mediated surfaces.** Claude, Codex, MCP, hooks, and future clients are adapters around the governed store; none of them bypass the librarian boundary.
+6. **Validated write boundary.** Every accepted write crosses parsing, binding, semantic validation, provenance capture, and atomic checkpointing before it becomes trusted memory.
+7. **Scoped memory by default.** Raw drafts and local memories remain scoped to their origin until governed promotion assigns broader scope, provenance, trust tier, and revocation semantics.
+8. **Consensus is evidence, not truth.** Multi-agent quorum output preserves participant identity, prompts, votes, dissent, and provenance; it does not become canonical truth without the librarian path.
 
 ---
 
@@ -111,7 +124,7 @@ Newtypes use `#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]` as applicable,
 
 ## 4. Determinism-vs-ML boundary
 
-`AGENTS.md` invariant: *"Deterministic code runs the pipeline; small ML only for semantic fuzziness (dedup, synonymy, supersession candidates)."* This section sharpens that boundary.
+Mimir's deterministic-core boundary permits ML only for semantic fuzziness (dedup, synonymy, supersession candidates). This section sharpens that boundary.
 
 ### Fully deterministic (no ML permitted)
 
@@ -355,12 +368,12 @@ Every `mod` has a `//!` section covering:
 
 ### Architectural invariant pointers
 
-Public items that rely on an `AGENTS.md` invariant or a `docs/concepts/` specification include a doc-comment reference:
+Public items that rely on an `PRINCIPLES.md` invariant or a `docs/concepts/` specification include a doc-comment reference:
 
 ```rust
 /// Writes a fact to the canonical store.
 ///
-/// Honors AGENTS.md invariant #1 (librarian-single-writer) and
+/// Honors the librarian-governed write boundary and
 /// `docs/concepts/write-protocol.md` § Episode atomicity.
 pub fn commit_fact(...) -> Result<...> { ... }
 ```
@@ -374,7 +387,7 @@ pub fn commit_fact(...) -> Result<...> { ... }
 - Code comments: local non-obvious WHYs only.
 - Module `//!` docs: module-level invariants and pipeline position.
 - `docs/concepts/`: cross-module architectural WHYs, referenced from code.
-- `AGENTS.md`: project-wide invariants, referenced from specs.
+- `PRINCIPLES.md`: project-wide invariants, referenced from specs.
 
 ---
 
@@ -458,8 +471,7 @@ Locked once v1 ships. Working assumptions for now:
 
 ## Cross-references
 
-- Architectural invariants: `AGENTS.md` § Architectural Invariants.
-- Engagement protocol: `AGENTS.md` § Engagement Protocol.
+- Architectural boundaries: `PRINCIPLES.md` § Architectural Boundaries.
 - Current phase and milestone plan: `STATUS.md`.
 - Gap analysis (the plan that produced this document): `research/GAP_ANALYSIS.md` (gitignored).
 - Architecture specifications: `docs/concepts/` (populated in Phase 3).
@@ -467,10 +479,4 @@ Locked once v1 ships. Working assumptions for now:
 
 ---
 
-## Why this file is separate from `AGENTS.md`
-
-`AGENTS.md` is the **operating manual**: architectural invariants, engagement protocol, anti-patterns, commit conventions. It should stay tight, stable, and read in full by any agent joining the project.
-
-`PRINCIPLES.md` is the **engineering-practice surface**. It is broader, grows with the project, and is consulted section-by-section by contributors working on the concern at hand. A Rust dev implementing error handling reads § 2; a contributor opening a PR consults § 7 + § 8 + § 9 selectively.
-
-Separation keeps both documents right-sized for their consumers.
+`PRINCIPLES.md` is the engineering-practice surface. It grows with the project and is consulted section-by-section by contributors working on the concern at hand. A Rust dev implementing error handling reads § 2; a contributor opening a PR consults § 7 + § 8 + § 9 selectively.

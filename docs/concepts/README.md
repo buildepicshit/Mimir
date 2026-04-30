@@ -2,7 +2,7 @@
 
 This directory holds Mimir's architectural specifications. Each spec graduates here from in-chat draft once both conditions hold:
 
-1. The concept is formally specified to a level implementable via TDD (per `AGENTS.md` § Engineering Standards).
+1. The concept is formally specified to a level implementable via TDD (per `PRINCIPLES.md` § Engineering Standards).
 2. Primary sources cited by the spec are verified against the actual literature, not training memory. See `../attribution.md` for the verification log.
 
 ## Current specs
@@ -44,4 +44,4 @@ If you're proposing a new architectural concern that doesn't fit an existing spe
 1. Open it as a draft in chat or in an ignored local scratch area until both graduation conditions above hold.
 2. When ready, add a file to this directory with the `> **Status: draft|citation-verified|authoritative**` banner in its first paragraph (the drift gate at `crates/mimir_core/tests/doc_drift_tests.rs::status_banner_consistency` enforces the format).
 3. Cite primary sources; record citation verification in `../attribution.md`.
-4. Cross-link from `AGENTS.md` "Where to Look" table.
+4. Link the concept from the public documentation index when it becomes part of the supported surface.

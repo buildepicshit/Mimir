@@ -2,7 +2,7 @@
 
 > **Status: authoritative 2026-04-18; criterion #4 closed 2026-04-19.** Graduated from `citation-verified` on 2026-04-18 backed by the `mimir_core::canonical` encoder/decoder implementation (19 opcodes with the addition of `EpisodeMeta = 0x21` on 2026-04-19; LEB128 varint + ZigZag + fixed-LE primitives, four-clock framing, symbol-event and flag-event records, episode-metadata record). Round-trip invariants are enforced by property tests in `mimir_core/tests/properties.rs`. Criterion #4 (no-panic-on-malformed-input decoder behaviour) met by the `fuzz/` cargo-fuzz target `fuzz_decoder` plus totality properties `decode_record_is_total_over_random_bytes` / `decode_all_is_total_over_random_bytes` / `decoder_rejects_every_prefix_truncation` in `tests/properties.rs` that run on every push. See [#33](https://github.com/buildepicshit/Mimir/issues/33) for cargo-fuzz setup.
 
-The canonical form is Mimir's on-disk bytecode — the agent-native storage format mandated by AGENTS.md invariant #1. Agent writes parsed from the Lisp S-expression surface (per `ir-write-surface.md`) are compiled by the binder/emitter into records in this form, persisted to append-only logs, and read back by the librarian. The canonical form is not human-readable by design; humans inspect through the decoder tool (spec 3.14).
+The canonical form is Mimir's on-disk bytecode — the agent-native storage format mandated by PRINCIPLES.md architectural boundary #2. Agent writes parsed from the Lisp S-expression surface (per `ir-write-surface.md`) are compiled by the binder/emitter into records in this form, persisted to append-only logs, and read back by the librarian. The canonical form is not human-readable by design; humans inspect through the decoder tool (spec 3.14).
 
 ## 1. Scope
 
@@ -43,7 +43,7 @@ The canonical form exists to be fast, dense, deterministic, and stable across li
 - **Parse speed.** Opcode-dispatch on the first byte; length prefix lets the reader skip unknown records; no lookahead.
 - **Append-only stability.** The format is additive — opcodes 0x00 and 0xFF are reserved for sentinel / extension continuation so future revisions can append new record types without breaking readers.
 
-Humans who need to inspect the canonical log use the decoder tool (`mimir-cli inspect`), which reads the binary and emits textual forms. This is the mandated path per AGENTS.md invariant #2.
+Humans who need to inspect the canonical log use the decoder tool (`mimir-cli inspect`), which reads the binary and emits textual forms. This is the mandated path per PRINCIPLES.md architectural boundary #2.
 
 ## 3. Conventions
 
@@ -487,7 +487,7 @@ These sit comfortably under the ~16 KB per-memory soft cap proposed in `workspac
 
 **Multi-workspace shared dictionary.** Cross-workspace import (`workspace-model.md` § 5.3) currently copies records verbatim, re-allocating foreign symbols in the receiving workspace's table. A shared-dictionary encoding for the importing workspace could avoid duplicate symbol allocation. Post-MVP federation question.
 
-**Streaming writers.** v1 assumes the librarian is a single-writer process (AGENTS.md invariant #1); the canonical log is exclusive-write. Multi-process writer coordination via file locks or a coordinator is out of scope.
+**Streaming writers.** v1 assumes the librarian is a single-writer process (PRINCIPLES.md architectural boundary #1); the canonical log is exclusive-write. Multi-process writer coordination via file locks or a coordinator is out of scope.
 
 ### 11.2 Non-goals for v1
 

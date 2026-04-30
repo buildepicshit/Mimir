@@ -129,7 +129,7 @@ For each pending citation:
 
 2. **LLM-based contradiction detection vs deterministic supersession rules.** Graphiti: "The system employs an LLM to compare new edges against semantically related existing edges to identify potential contradictions." Mimir: deterministic rules per memory type (`temporal-model.md` § 5) — Semantic auto-supersede on `(s, p)` with later `valid_at`; Procedural on `rule_id` or `(trigger, scope)`. This is the key architectural divergence, rooted in Mimir's `PRINCIPLES.md` § 4 determinism-vs-ML boundary: ML-capable proposers may suggest supersession candidates, but the commit decision is deterministic.
 
-3. **Append-only substrate.** Graphiti updates edge state in place (`t_valid ← t_invalid of invalidator`). Mimir's canonical log is append-only (AGENTS.md invariant #3); `invalid_at` is part of the supersession edge record, not a mutation of the prior memory.
+3. **Append-only substrate.** Graphiti updates edge state in place (`t_valid ← t_invalid of invalidator`). Mimir's canonical log is append-only (PRINCIPLES.md architectural boundary #3); `invalid_at` is part of the supersession edge record, not a mutation of the prior memory.
 
 4. **Four-clock model is derivative, not novel to Mimir.** `temporal-model.md` § 2 originally framed the four-clock model as "Mimir's specific choice — four clocks rather than SQL:2011's two periods." This verification pass corrects the framing: Graphiti's four-timestamp model (also bi-temporal with two-per-timeline) is the direct precedent. Mimir's novelty is limited to substituting `observed_at` for `t'_expired` and switching from in-place edge mutation to append-only supersession edges. `temporal-model.md` amended to state the lineage accurately.
 

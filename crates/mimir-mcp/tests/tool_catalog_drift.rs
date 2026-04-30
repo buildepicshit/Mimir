@@ -176,13 +176,12 @@ fn mimir_mcp_surface_does_not_advertise_unsupported_clients() {
     // Forbidden phrases — case-insensitive substring match. Each
     // phrase is the way an unwary contributor might mention an
     // off-spec client. The phrase set is the load-bearing part of
-    // this test; review it together with the AGENTS.md invariant if
+    // this test; review it together with the supported-client boundary if
     // either changes.
     //
     // NOTE: bare client names ("Cursor", "Cline") are intentionally
     // NOT in the forbidden list — they may legitimately appear in
-    // discussion of the AGENTS.md standard's broad adoption (e.g.
-    // "Cursor IDE auto-ingests AGENTS.md"). The forbidden phrases
+    // discussion of broad client behavior. The forbidden phrases
     // below specifically catch *targeting* / *supporting* Mimir on
     // those clients.
     let forbidden_phrases: &[&str] = &[

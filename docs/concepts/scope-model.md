@@ -1,6 +1,6 @@
 # Scope Model
 
-> **Status: draft 2026-04-24.** Drafted after the 2026-04-24 mission expansion from project-local Claude memory toward a multi-agent memory control plane. The mandate is accepted in `AGENTS.md`; this spec is not implemented yet. It supersedes `workspace-model.md` only for the cross-scope promotion model; the current code still implements hard project/workspace partitioning.
+> **Status: draft 2026-04-24.** Drafted after the 2026-04-24 mission expansion from project-local Claude memory toward a multi-agent memory control plane. The mandate is accepted in `PRINCIPLES.md`; this spec is not implemented yet. It supersedes `workspace-model.md` only for the cross-scope promotion model; the current code still implements hard project/workspace partitioning.
 
 Mimir's original workspace model made contamination structurally impossible by forbidding cross-workspace reads, writes, imports, and coordination. That was the right safety baseline for a single-agent memory system.
 

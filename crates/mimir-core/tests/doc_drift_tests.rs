@@ -28,11 +28,6 @@
 //!   (project is pre-tag); load-bearing the moment the release
 //!   pipeline lands. (Roadmap Phase 4 + Rolls-Royce gap row 11.)
 //!
-//! - [`agents_md_table_consistency`] — the `AGENTS.md` "Where to
-//!   Look" table cannot mark a `docs/*` path as "to be authored"
-//!   when that path actually exists with non-trivial content. (Doc
-//!   finding F3 — auto-ingested by every coding-agent client.)
-//!
 //! - [`mimir_core_workspace_dep_version_consistency`] — the
 //!   `[workspace.dependencies] mimir_core` version pin must equal
 //!   `[workspace.package].version`. The release pipeline at
@@ -237,7 +232,7 @@ fn readme_no_design_phase_lies() {
     let forbidden = [
         // Doc finding F1 (P1) — README claimed design phase / no code.
         "no production code yet",
-        // Doc finding F3 (P2) — AGENTS.md "Where to Look" leakage.
+        // Doc finding F3 (P2) — stale placeholder wording.
         "to be authored",
         // Doc finding F1 — stale "private" framing.
         "private while it is design-phase",
@@ -334,72 +329,7 @@ fn version_consistency() {
 }
 
 // ----------------------------------------------------------------
-// Test 4 — AGENTS.md "Where to Look" table truthfulness
-// ----------------------------------------------------------------
-
-#[test]
-fn agents_md_table_consistency() {
-    let repo_root = find_repo_root();
-    let agents = repo_root.join("AGENTS.md");
-    let text =
-        fs::read_to_string(&agents).unwrap_or_else(|e| panic!("read {}: {e}", agents.display()));
-
-    let mut violations: Vec<String> = Vec::new();
-    for (line_no, line) in text.lines().enumerate() {
-        // Match table rows (Markdown pipe-tables): they start with `|`.
-        let trimmed = line.trim();
-        if !trimmed.starts_with('|') {
-            continue;
-        }
-        // Look for backtick-quoted paths under docs/ — that's the
-        // table convention we use for spec / doc references.
-        let mut search = trimmed;
-        while let Some(start) = search.find("`docs/") {
-            let after = &search[start + 1..]; // skip opening backtick
-            let Some(end) = after.find('`') else {
-                break;
-            };
-            let path_str = &after[..end];
-            // Strip trailing slash if present (we point at directories sometimes).
-            let cleaned = path_str.trim_end_matches('/');
-            let path = repo_root.join(cleaned);
-            if path.exists() {
-                let exists_with_content = if path.is_file() {
-                    fs::metadata(&path).map(|m| m.len() > 64).unwrap_or(false)
-                } else if path.is_dir() {
-                    // Directory: at least one entry is enough.
-                    fs::read_dir(&path)
-                        .map(|mut d| d.next().is_some())
-                        .unwrap_or(false)
-                } else {
-                    false
-                };
-                if exists_with_content && trimmed.contains("to be authored") {
-                    violations.push(format!(
-                        "AGENTS.md:{} — row references `{}` (which exists with content) \
-                         but says \"to be authored\". Update the row to reflect the \
-                         file's actual status.",
-                        line_no + 1,
-                        cleaned,
-                    ));
-                }
-            }
-            search = &after[end + 1..];
-        }
-    }
-
-    assert!(
-        violations.is_empty(),
-        "AGENTS.md `Where to Look` table drift — auto-ingested by every coding-agent \
-         client (Claude Code, Cursor, Codex, Copilot, Gemini CLI), so stale \"to be \
-         authored\" entries actively misdirect agents that look at AGENTS.md before \
-         exploring the spec corpus.\nViolations:\n  - {}",
-        violations.join("\n  - "),
-    );
-}
-
-// ----------------------------------------------------------------
-// Test 5 — workspace.dependencies mimir_core version pin matches
+// Test 4 — workspace.dependencies mimir_core version pin matches
 //          workspace.package version
 // ----------------------------------------------------------------
 

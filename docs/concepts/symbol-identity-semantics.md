@@ -200,7 +200,7 @@ Exact grammar of `@name:Kind` annotation is defined in `ir-write-surface.md`.
 
 ### 6.1 Rename is an alias edge, not a rewrite
 
-Renaming a symbol does not rewrite prior canonical records. Canonical memories are append-only per AGENTS.md invariant #3. Instead, the librarian records an alias edge `new → old` in the symbol table, such that reads of either name resolve to the same `SymbolId`.
+Renaming a symbol does not rewrite prior canonical records. Canonical memories are append-only per PRINCIPLES.md architectural boundary #3. Instead, the librarian records an alias edge `new → old` in the symbol table, such that reads of either name resolve to the same `SymbolId`.
 
 ### 6.2 Rename as a first-class event
 
@@ -267,9 +267,9 @@ Alias declarations emit an Episodic memory analogous to rename events (§ 6.2), 
 
 ### 8.1 Soft retirement only
 
-Retiring a symbol flags it as no-longer-recommended for new references. Existing references still resolve; reads of retired symbols emit a stale-symbol escalation flag per AGENTS.md invariant § Read Protocol.
+Retiring a symbol flags it as no-longer-recommended for new references. Existing references still resolve; reads of retired symbols emit a stale-symbol escalation flag per `read-protocol.md`.
 
-Mimir does **not** support hard-delete. Append-only invariant (AGENTS.md #3) forbids removing historical references. Retirement is the only way to stop advertising a symbol.
+Mimir does **not** support hard-delete. The append-only boundary (PRINCIPLES.md architectural boundary #3) forbids removing historical references. Retirement is the only way to stop advertising a symbol.
 
 ### 8.2 Retirement event
 

@@ -2,7 +2,7 @@
 
 > **Status: authoritative — graduated 2026-04-18; scope amended 2026-04-24.** Scope reduced 2026-04-18 — raw cross-workspace reads, `CONFLICT` flag (SSI), and `CONTESTED` flag (multi-writer conflict surface) were removed from this workspace-local read protocol. Mimir's current workspace store is an isolation boundary; each workspace has a single writer and no implicit inter-workspace reads. The 2026-04-24 mandate adds a separate draft `scope-model.md` for explicit cross-scope retrieval after librarian-governed promotion. Graduation evidence: `mimir_core::read::Pipeline::execute_query` implements the grammar + flags + framing + filtered-array surface (7.1–7.3); `Pipeline::semantic_by_sp_history` + `procedural_by_rule_history` implement the § 3.1 current-state index; `resolver::resolve_semantic` and `resolve_procedural` consult the index for O(k) lookup in the `(s, p)` or `rule_id` bucket instead of scanning; 7.4 property tests cover criterion #3 (snapshot isolation, STALE_SYMBOL propagation, as-of + retroactive supersession); the `benches/read_path.rs` criterion bench measures p50 ≈ **0.57 µs** for a single-predicate Semantic lookup against a 1 M-memory warm index, clearing criterion #4's p50 < 1 ms target by ~1,750×. Inferential reads (`:kind inf`) wired in Phase 3.1: `resolver::resolve_inferential` + `Pipeline::inferential_records` + `Pipeline::inferential_history_at` deliver the same `(s, p)`-keyed lookup semantics the § 3.1 `inferential` index specifies, and `EmitError::InferentialSupersessionConflict` enforces the § 5.4 re-derivation rule at write time. The read-time stale-flag overlay for `StaleParent` edges is a follow-up pending a § 5 `ReadFlags` amendment to allocate a dedicated bit for it.
 
-This specification defines how a Claude instance reads from its workspace's canonical store. It implements AGENTS.md invariant #2 (bifurcated reads): the agent reads canonical state directly on the hot path, escalating to the librarian only when result flags indicate fuller context is needed.
+This specification defines how a Claude instance reads from its workspace's canonical store. It implements PRINCIPLES.md architectural boundary #2 (bifurcated reads): the agent reads canonical state directly on the hot path, escalating to the librarian only when result flags indicate fuller context is needed.
 
 ## 1. Scope
 
@@ -42,7 +42,7 @@ Graduates draft → authoritative when:
 
 Agents read from Mimir constantly. Reads on the hot path must be cheap and deterministic; adding a librarian round-trip to every read would kill the latency budget.
 
-AGENTS.md invariant #2 defines the bifurcation: **agents read canonical directly on the hot path; escalate to the librarian on conflict, low confidence, or stale-symbol flag.**
+PRINCIPLES.md architectural boundary #2 defines the bifurcation: **agents read canonical directly on the hot path; escalate to the librarian on conflict, low confidence, or stale-symbol flag.**
 
 Two consequences:
 

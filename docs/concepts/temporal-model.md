@@ -34,7 +34,7 @@ Graduates draft → authoritative when:
 
 ## 2. Design thesis: bi-temporal identity, append-only truth
 
-Mimir's store is append-only (AGENTS.md invariant #3). In-place overwrite is forbidden; every change appends. The question becomes: what happens when a fact changes? A semantic memory says "Alice's email is `x@…`"; six months later she changes it to `y@…`. Both facts must be true of the record — *y* is true *now*, *x* was true *earlier* — without either overwriting the other.
+Mimir's store is append-only (PRINCIPLES.md architectural boundary #3). In-place overwrite is forbidden; every change appends. The question becomes: what happens when a fact changes? A semantic memory says "Alice's email is `x@…`"; six months later she changes it to `y@…`. Both facts must be true of the record — *y* is true *now*, *x* was true *earlier* — without either overwriting the other.
 
 Bi-temporal modelling is the answer. Every memory carries:
 
@@ -56,7 +56,7 @@ This model is drawn most directly from **Graphiti** (Rasmussen et al., arXiv:250
 | `t_invalid` | `invalid_at` | when the fact stopped being true |
 | *(no analog)* | `observed_at` | agent's wall-clock at write (Episodic) — distinct from `at_time` / `valid_at` |
 
-Mimir's variations — substituting `observed_at` for `t'_expired`, and using append-only supersession edges rather than in-place edge mutation — are driven by (a) the Episodic memory type's need to distinguish event-time from observation-time, and (b) AGENTS.md invariant #3 (append-only canonical store, no in-place overwrite). A further divergence from Graphiti: Mimir uses **deterministic supersession rules** (§ 5), whereas Graphiti uses an LLM to "compare new edges against semantically related existing edges to identify potential contradictions" (§ 2.2.3). Mimir's `librarian-pipeline.md` § 7 allows ML-proposed supersession candidates but always wraps them in a deterministic commit decision per `PRINCIPLES.md` § 4.
+Mimir's variations — substituting `observed_at` for `t'_expired`, and using append-only supersession edges rather than in-place edge mutation — are driven by (a) the Episodic memory type's need to distinguish event-time from observation-time, and (b) PRINCIPLES.md architectural boundary #3 (append-only canonical store, no in-place overwrite). A further divergence from Graphiti: Mimir uses **deterministic supersession rules** (§ 5), whereas Graphiti uses an LLM to "compare new edges against semantically related existing edges to identify potential contradictions" (§ 2.2.3). Mimir's `librarian-pipeline.md` § 7 allows ML-proposed supersession candidates but always wraps them in a deterministic commit decision per `PRINCIPLES.md` § 4.
 
 ## 3. The four clocks
 

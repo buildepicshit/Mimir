@@ -2,7 +2,7 @@
 
 > **Status: authoritative 2026-04-18.** Graduated from `citation-verified` on 2026-04-18 backed by `mimir_core::pipeline::Pipeline::compile_batch` (five-stage wiring, clone-on-write batch atomicity per invariant § 11.3, byte-for-byte determinism per invariant § 11.2) and `mimir_core::inference_methods::InferenceMethod` (14-method registry with deterministic integer fixed-point confidence formulas and per-method doctests per § 5 and § 1 graduation criterion #4). Parent-count cap of 8 on methods that compute a joint product (`@pattern_summarize`, `@architectural_chain`, `@provenance_chain`, `@analogy_inference`, `@multi_source_consensus`) is a bounded-determinism caveat pending a follow-up log-table implementation for unbounded N; all practical v1 inference chains fall under the cap.
 
-The librarian pipeline compiles agent-emitted Lisp S-expressions into canonical-form records. It is the Roslyn-analog of Mimir — lexer, parser, binder, semantic analyzer, emitter — running as a single-writer, compile-style pipeline per AGENTS.md invariant #4. This specification defines the pipeline stages, the inference-method registry, and the boundary between deterministic operations and ML-proposed candidates.
+The librarian pipeline compiles agent-emitted Lisp S-expressions into canonical-form records. It is the Roslyn-analog of Mimir — lexer, parser, binder, semantic analyzer, emitter — running as a single-writer, compile-style pipeline per PRINCIPLES.md architectural boundary #4. This specification defines the pipeline stages, the inference-method registry, and the boundary between deterministic operations and ML-proposed candidates.
 
 ## 1. Scope
 
@@ -89,7 +89,7 @@ The lexer is a state-machine recognizer. No heuristics. Newlines are whitespace 
 **Input:** `Vec<UnboundForm>` + current workspace symbol table.
 **Output:** `Vec<BoundForm>` (AST with `SymbolId`s substituted for `RawSymbolName`s) + a record of symbol-table mutations (new allocations, rename edges, alias edges).
 **Error:** `BindError` — `SymbolKindMismatch`, `SymbolRenameConflict`, `AliasCycle`, `AliasChainLengthExceeded`, `InferentialCycle`, `UnregisteredInferenceMethod`, `NoActiveWorkspace`, `ForeignSymbolForbidden` (foreign-workspace symbol rejected; workspaces never share symbols), etc.
-**Determinism:** fully deterministic. Symbol resolution is a pure lookup + (optional) allocation under the single-writer invariant (AGENTS.md #1).
+**Determinism:** fully deterministic. Symbol resolution is a pure lookup + (optional) allocation under the single-writer boundary (PRINCIPLES.md architectural boundary #1).
 
 Bind applies `symbol-identity-semantics.md` § 9 resolution algorithm to every `RawSymbolName` in the form. First-use allocations happen here; kind inference happens here.
 
@@ -122,7 +122,7 @@ Emit applies the byte layouts in `ir-canonical-form.md` § 5–6. No further val
 
 ### 4.1 A batch = an Episode
 
-The pipeline operates on **batches**. Each batch is one Episode per `memory-type-taxonomy.md` and AGENTS.md invariant #6 (checkpoint-triggered write batches).
+The pipeline operates on **batches**. Each batch is one Episode per `memory-type-taxonomy.md` and PRINCIPLES.md architectural boundary #6 (checkpoint-triggered write batches).
 
 A single-form "write" is a degenerate batch of size 1. An agent-initiated multi-form commit is a larger batch. The pipeline does not distinguish.
 
@@ -316,7 +316,7 @@ Ordering within Bind is stable (input order); no reordering optimization in v1.
 
 ## 9. Backpressure
 
-The pipeline does not buffer. Under the v1 in-process synchronous API (`wire-architecture.md` § 3), there is no queue and no separate wire-layer backpressure mechanism — Rust's borrow checker serializes writes by rejecting concurrent `&mut Store` access, so the librarian runs one batch through all stages, commits or rolls back, then returns to the caller. No parallel batch processing in v1 (per AGENTS.md invariant #1, single-writer).
+The pipeline does not buffer. Under the v1 in-process synchronous API (`wire-architecture.md` § 3), there is no queue and no separate wire-layer backpressure mechanism — Rust's borrow checker serializes writes by rejecting concurrent `&mut Store` access, so the librarian runs one batch through all stages, commits or rolls back, then returns to the caller. No parallel batch processing in v1 (per PRINCIPLES.md architectural boundary #1, single-writer).
 
 Batch size is bounded by configuration (default: 256 forms per batch). Batches larger than the limit are rejected synchronously by the parse / semantic stage before emit.
 

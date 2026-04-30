@@ -68,7 +68,7 @@ A batch reaching the Emit stage has been fully validated. Making it durable is a
 
 ### 4.1 Phase 1 — append all records
 
-1. Acquire the workspace's single-writer lock (per AGENTS.md invariant #1).
+1. Acquire the workspace's single-writer lock (per PRINCIPLES.md architectural boundary #1).
 2. For each record produced by Emit:
    - Append the record's bytes to `canonical.log` (standard OS `write()`).
 3. No fsync yet. The records are in the OS page cache; they may or may not be on disk.
@@ -114,7 +114,7 @@ On librarian startup, the recovery algorithm (§ 10) truncates any orphan record
 
 ### 5.3 No partial commits
 
-There is no mechanism to commit part of a batch. A batch either reaches CHECKPOINT fsync (fully committed) or does not (fully discarded). This matches Episode atomicity from AGENTS.md invariant #6.
+There is no mechanism to commit part of a batch. A batch either reaches CHECKPOINT fsync (fully committed) or does not (fully discarded). This matches Episode atomicity from PRINCIPLES.md architectural boundary #6.
 
 ## 6. fsync policy
 
@@ -168,7 +168,7 @@ Supersession is an edge operation, not a record modification. When a batch inclu
 
 ### 8.1 Batch-level supersession serialization
 
-Batches within a workspace are strictly serial (single-writer per AGENTS.md #1). Each batch's Semantic stage sees the post-commit state of all prior batches, so "concurrent supersession of the same memory" cannot occur. Two back-to-back batches that both target the same current-state memory serialize naturally: the first commits, the second's Semantic stage either extends the supersession chain from the first's result or, if the intent has become incoherent, rejects with a typed error before any record is written.
+Batches within a workspace are strictly serial (single-writer per PRINCIPLES.md architectural boundary #1). Each batch's Semantic stage sees the post-commit state of all prior batches, so "concurrent supersession of the same memory" cannot occur. Two back-to-back batches that both target the same current-state memory serialize naturally: the first commits, the second's Semantic stage either extends the supersession chain from the first's result or, if the intent has become incoherent, rejects with a typed error before any record is written.
 
 ### 8.2 Retroactive supersession
 
