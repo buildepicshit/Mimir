@@ -31,10 +31,11 @@ fuzz/coverage/
 *.profraw
 *.profdata
 
-# ----- Machine-local Claude Code state (user-specific, never committed) -----
+# ----- Local user-specific agent state (not committed) -----
 .claude/settings.local.json
-.claude/settings.json
-.claude/skills/
+.codex
+.mcp.json
+.mcp.local.json
 
 # ----- Mimir operator-local state (per-operator workspace data, never committed) -----
 .mimir/

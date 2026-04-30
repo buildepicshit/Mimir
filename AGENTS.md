@@ -2,6 +2,35 @@
 
 > Cross-framework operating manual for Mimir following the [AGENTS.md](https://agents.md/) standard. Read automatically by Claude Code, Codex, Cursor, Copilot, Gemini CLI, and any agent framework supporting the standard.
 
+## BES Fleet Operating Model
+
+This repo participates in the BES spec-first agent fleet. The machine-level
+contract is `/var/home/hasnobeef/buildepicshit/.agents/OPERATING_MODEL.md`;
+repo-local copies of the shared spec template, workflows, and skills live under
+`.agents/`.
+
+Documentation placement rules live in `.agents/DOCUMENTATION_GUIDE.md`. Read it
+before creating, moving, archiving, or publishing docs/specs. In short:
+`.agents/specs/` is for agent/Symphony task control; durable product docs live
+in this repo's native docs path.
+
+Non-trivial work requires an approved executable `SPEC.md` before
+implementation. Use `.agents/specs/SPEC.template.md`, then run the lifecycle:
+orient, author spec, review spec, approve, execute, verify, report, and route
+durable lessons to Mimir as governed evidence drafts. Raw Claude/Codex memories
+are supporting evidence only; checked-in docs and this file remain authoritative.
+
+Claude must enter through `CLAUDE.md`, which imports this file. Codex and other
+AGENTS-aware tools read this file directly. Keep both surfaces aligned.
+
+Shared task skills live in `.agents/skills/`; Claude-native copies live in
+`.claude/skills/`. Use `.agents/skills/repo-orientation` at task start,
+`.agents/skills/spec-driven-development` for non-trivial work,
+`.agents/skills/verification` before completion, and
+`.agents/skills/spec-evidence-governance` only to propose evidence candidates.
+Do not build from raw memory. Build from approved specs, repo docs, and fresh
+verification evidence.
+
 > **CI quota constraint (HARD RULE — read before pushing).** This org has a **finite monthly GitHub Actions budget**. Extra Actions usage was added on 2026-04-27 and the owner approved re-enabling Actions for this repo, but every push to a tracked branch / PR still triggers a full matrix run (~30 runner-minutes for 8 jobs across 3 OSes). The 2026-04-20 session burned through the entire monthly quota in heavy iteration — do not repeat that pattern.
 >
 > **Verify locally before pushing.** Always run the full local gate before `git push`:
