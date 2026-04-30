@@ -31,11 +31,15 @@ fuzz/coverage/
 *.profraw
 *.profdata
 
-# ----- Local user-specific agent state (not committed) -----
-.claude/settings.local.json
+# ----- Local orchestration/tooling artifacts (never committed) -----
+.agents/
+.claude/
 .codex
 .mcp.json
 .mcp.local.json
+AGENTS.md
+CLAUDE.md
+WORKFLOW.md
 
 # ----- Mimir operator-local state (per-operator workspace data, never committed) -----
 .mimir/
