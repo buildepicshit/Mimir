@@ -1162,9 +1162,44 @@ fn doctor_reports_public_readiness_actions_without_raw_draft_text(
     assert!(stdout.contains("doctor_check index=0"));
     assert!(stdout.contains("id=pending_drafts"));
     assert!(stdout.contains("mimir drafts list --state pending"));
-    assert!(stdout.contains("id=native_setup_claude_project"));
-    assert!(stdout.contains("mimir setup-agent doctor --agent claude"));
+    assert!(stdout.contains("id=native_setup_claude_project_missing"));
+    assert!(!stdout.contains("mimir setup-agent doctor --agent claude"));
     assert!(!stdout.contains("Do not leak this raw doctor draft"));
+    Ok(())
+}
+
+#[test]
+fn doctor_treats_missing_native_project_setup_as_info() -> Result<(), Box<dyn std::error::Error>> {
+    let tmp = tempfile::tempdir()?;
+    let project = tmp.path().join("project");
+    fs::create_dir_all(&project)?;
+    write_git_origin(&project, "https://github.com/buildepicshit/Mimir.git")?;
+    let data_root = tmp.path().join("mimir-data");
+    let drafts_dir = tmp.path().join("mimir-drafts");
+    let remote_url = tmp.path().join("memory.git");
+    write_remote_config(
+        &project.join(".mimir/config.toml"),
+        &data_root,
+        &drafts_dir,
+        &remote_url,
+    )?;
+
+    let output = Command::new(env!("CARGO_BIN_EXE_mimir"))
+        .arg("doctor")
+        .arg("--project-root")
+        .arg(&project)
+        .env_remove("MIMIR_CONFIG_PATH")
+        .env_remove("MIMIR_DRAFTS_DIR")
+        .output()?;
+
+    assert!(output.status.success(), "status: {:?}", output.status);
+    let stdout = String::from_utf8(output.stdout)?;
+    assert!(stdout.contains("doctor_readiness=ready"));
+    assert!(stdout.contains("doctor_action_count=0"));
+    assert!(stdout.contains("id=native_setup_claude_project_missing"));
+    assert!(stdout.contains("id=native_setup_codex_project_missing"));
+    assert!(!stdout.contains("mimir setup-agent doctor --agent claude"));
+    assert!(!stdout.contains("mimir setup-agent doctor --agent codex"));
     Ok(())
 }
 

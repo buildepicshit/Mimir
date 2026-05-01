@@ -25,6 +25,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Mim
 
 ### Fixed — harness isolation
 
+- **Project-native setup doctor policy** — `mimir doctor` now treats completely missing project-local Claude/Codex setup as informational instead of action-required, so public repositories can forbid agent artifacts while still reaching a green readiness state. Partial native setup remains actionable.
 - **Wrapped-session environment isolation** — `mimir status`, `mimir health`, `mimir drafts`, and `mimir remote` now ignore inherited wrapper `MIMIR_CONFIG_PATH` / `MIMIR_DRAFTS_DIR` when an explicit `--project-root` is supplied without `--config`, so inspecting sibling repositories cannot accidentally read the current wrapped session's Mimir state. Project-local config also wins over inherited `MIMIR_DRAFTS_DIR` for status, health, launch, drafts, and remote planning.
 - **Binary smoke-test isolation** — the real `mimir rustc --version` subprocess smoke test now scrubs inherited `MIMIR_*` variables before launch, preventing local test runs from staging operator-live draft envelopes.
 - **Quorum adapter spawn stability** — adapter and synthesis execution now retry transient Unix `ETXTBSY` spawn failures, closing a local parallel-test flake where freshly written executable shims could briefly report "text file busy".
