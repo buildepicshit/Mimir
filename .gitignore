@@ -64,3 +64,11 @@ desktop.ini
 .helix/
 *.swp
 *.swo
+
+AGENT_INBOX.md
+
+AGENT_FEEDBACK.md
+
+SESSION_JOURNAL.md
+
+.githooks/
