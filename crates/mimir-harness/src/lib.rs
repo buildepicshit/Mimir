@@ -1869,8 +1869,20 @@ fn append_librarian_doctor_checks(checks: &mut Vec<DoctorCheck>, config: &Harnes
 fn append_native_setup_doctor_checks(checks: &mut Vec<DoctorCheck>, start_dir: &Path) {
     for agent in [NativeSetupAgent::Claude, NativeSetupAgent::Codex] {
         let status = project_native_setup_status(agent, start_dir);
-        if status != "installed" {
-            checks.push(DoctorCheck::action(
+        match status {
+            "installed" => {}
+            "missing" => checks.push(DoctorCheck::info(
+                "P2",
+                match agent {
+                    NativeSetupAgent::Claude => "native_setup_claude_project_missing",
+                    NativeSetupAgent::Codex => "native_setup_codex_project_missing",
+                },
+                format!(
+                    "{} project setup is missing; install it only when repo policy permits project-local agent artifacts.",
+                    agent.as_str()
+                ),
+            )),
+            _ => checks.push(DoctorCheck::action(
                 "P1",
                 match agent {
                     NativeSetupAgent::Claude => "native_setup_claude_project",
@@ -1885,7 +1897,7 @@ fn append_native_setup_doctor_checks(checks: &mut Vec<DoctorCheck>, start_dir: &
                     "{} project setup is {status}; inspect the exact install/remove actions.",
                     agent.as_str()
                 ),
-            ));
+            )),
         }
     }
 }
